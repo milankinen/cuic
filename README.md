@@ -1,15 +1,11 @@
-# REPLUIt
+# CUIC - Concise UI testing with Clojure
 
-REPL powered UI testing
+UI testing. Redefined.
 
-[![Build Status](https://img.shields.io/travis/milankinen/repluit/master.svg?style=flat-square)](https://travis-ci.org/milankinen/repluit)
-[![Clojars Project](https://img.shields.io/clojars/v/repluit.svg?style=flat-square)](https://clojars.org/repluit)
+[![Build Status](https://img.shields.io/travis/milankinen/cuic/master.svg?style=flat-square)](https://travis-ci.org/milankinen/cuic)
+[![Clojars Project](https://img.shields.io/clojars/v/cuic.svg?style=flat-square)](https://clojars.org/cuic)
 
 TODO
-
-```clj
-[repluit "0.0.1"]
-```
 
 ## License
 

@@ -34,8 +34,9 @@
   `(try
      ~call-expr
      (catch ChromeDevToolsInvocationException e#
-       (case (.getCode e#)
-         -32000 (throw (stale-node))
+       (if (and (= -32000 (.getCode e#))
+                (= "Cannot find context with specified id" (.getMessage e#)))
+         (throw (stale-node))
          (throw e#)))))
 
 (defmacro with-stale-ignored [expr]

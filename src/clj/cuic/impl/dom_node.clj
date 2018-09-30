@@ -11,6 +11,7 @@
       (.getObjectId)))
 
 (defn node-id [{:keys [id browser]}]
+  {:pre [(some? browser) (some? id)]}
   (-> (.getDOM (tools browser))
       (.requestNode id)))
 

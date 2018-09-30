@@ -207,6 +207,30 @@
   (or (-run-node-query [n node]
         (js/eval-in n "!!this.checked"))))
 
+(defn page-screenshot
+  "Takes a screen capture from the currently visible page and returns a byte array
+   of the captured image (encoded in PNG format)"
+  ([{:keys [masked-nodes]}]
+   (-> (util/scaled-screenshot (-browser))
+       (util/mask-nodes masked-nodes)
+       (util/png-bytes)))
+  ([] (page-screenshot {})))
+
+(defn screenshot
+  "Takes a screen capture from the given DOM node and returns a byte array of the
+   captured image (encoded in PNG format). DOM node must be visible or otherwise
+   an exception is thrown."
+  ([node {:keys [masked-nodes]}]
+    ; for some reason, Chrome's "clip" option in .captureScreenshot does not match the
+    ; bounding box rect of the node so we need to do it manually here in JVM...
+   (let [n  (visible node)
+         _  (util/scroll-into-view! n)
+         bb (util/bounding-box n)]
+     (-> (util/scaled-screenshot (-browser))
+         (util/mask-nodes masked-nodes)
+         (util/crop (:left bb) (:top bb) (:width bb) (:height bb))
+         (util/png-bytes))))
+  ([node] (screenshot node {})))
 
 (defn goto!
   "Navigates the page to the given URL."

@@ -5,12 +5,21 @@
             [cuic.impl.browser :refer [tools]])
   (:import (java.io Writer)))
 
+(defn node-id->object-id [browser node-id]
+  (-> (call (-> (.getDOM (tools browser))
+                (.resolveNode node-id nil nil)))
+      (.getObjectId)))
+
+(defn node-id [{:keys [id browser]}]
+  (-> (.getDOM (tools browser))
+      (.requestNode id)))
+
 (defrecord DOMNode [id browser]
   Object
   (toString [this]
     (try
       (let [attrs (->> (call (-> (.getDOM (tools browser))
-                                 (.getAttributes id)))
+                                 (.getAttributes (node-id this))))
                        (partition 2 2)
                        (map (fn [[k v]] [(keyword k) v]))
                        (into {}))

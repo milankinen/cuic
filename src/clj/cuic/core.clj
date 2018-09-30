@@ -3,7 +3,7 @@
   (:require [clojure.string :as string]
             [clojure.set :refer [difference]]
             [cuic.impl.browser :as browser :refer [tools]]
-            [cuic.impl.dom-node :refer [->DOMNode maybe existing visible]]
+            [cuic.impl.dom-node :refer [->DOMNode maybe existing visible node-id node-id->object-id]]
             [cuic.impl.exception :refer [call with-stale-ignored]]
             [cuic.impl.retry :as retry]
             [cuic.impl.html :as html]
@@ -94,10 +94,10 @@
 (defn document
   "Returns the root document node or nil if document is not available"
   []
-  (-> (call (-> (.getDOM (-t)) (.getDocument)))
-      (.getNodeId)
-      (->DOMNode (-browser))
-      (with-meta {::document true})))
+  (as-> (call (-> (.getDOM (-t)) (.getDocument))) $
+        (node-id->object-id (-browser) (.getNodeId $))
+        (->DOMNode $ (-browser))
+        (with-meta $ {::document true})))
 
 (defn q
   "Performs a CSS query to the subtree of the given root node and returns a
@@ -106,7 +106,8 @@
   ([root-node ^String selector]
    (or (-run-node-query [n root-node]
          (->> (call (-> (.getDOM (-t))
-                        (.querySelectorAll (:id root-node) selector)))
+                        (.querySelectorAll (node-id root-node) selector)))
+              (map (partial node-id->object-id (:browser n)))
               (mapv #(->DOMNode % (:browser n)))))
        []))
   ([^String selector]
@@ -144,7 +145,7 @@
   (node is a map of {:keys [tag attrs content]})"
   [node]
   (-run-node-query [n node]
-    (->> (call (.getOuterHTML (.getDOM (-t)) (:id n) nil nil))
+    (->> (call (.getOuterHTML (.getDOM (-t)) (node-id n) nil nil))
          (html/parse (true? (::document (meta n)))))))
 
 (defn text-content
@@ -159,7 +160,7 @@
   "Returns a map of attributes and their values for the given DOM node"
   [node]
   (or (-run-node-query [n node]
-        (->> (call (.getAttributes (.getDOM (-t)) (:id n)))
+        (->> (call (.getAttributes (.getDOM (-t)) (node-id n)))
              (partition 2 2)
              (map (fn [[k v]] [(keyword k) v]))
              (into {})))
@@ -265,7 +266,7 @@
   (-run-node-mutation [n node]
     (util/scroll-into-view! n)
     (call (-> (.getDOM (tools (:browser n)))
-              (.focus (:id node) nil nil)))))
+              (.focus (node-id node) nil nil)))))
 
 (defn select-text!
   "Selects all text from the given input DOM element. If element is

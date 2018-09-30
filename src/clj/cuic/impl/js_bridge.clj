@@ -13,17 +13,12 @@
     Iterable (mapv cljze x)
     x))
 
-(defn- node-id->object-id [browser node-id]
-  (-> (call (-> (.getDOM (tools browser))
-                (.resolveNode node-id nil nil)))
-      (.getObjectId)))
-
 (defn- call-fn-on [{:keys [id browser]} body args]
   (-> (call (-> (.getRuntime (tools browser))
                 (.callFunctionOn (str "async function("
                                       (string/join "," (map first args))
                                       "){ " body " }")
-                                 (node-id->object-id browser id)
+                                 id
                                  (apply list (map (fn [[_ val]] (doto (CallArgument.) (.setValue val))) args))
                                  nil                        ; silent
                                  true                       ; return by value
@@ -80,7 +75,7 @@
 (defn eval-in [node expr]
   (when node
     (debug "eval-in node:" (:id node)
-           "\nexpr:"expr)
+           "\nexpr:" expr)
     (-> (call-fn-on node (str "return " expr) [])
         (handle-non-wrapped-result)
         (cljze))))

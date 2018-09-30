@@ -14,17 +14,16 @@
   (int (Math/floor (double num))))
 
 (defn fit-rect [im {:keys [x y w h]}]
-  (let [iw (.getWidth im)
-        ih (.getHeight im)
-        x' (min iw (max 0 (px x)))
-        y' (min ih (max 0 (px y)))
-        r {:x x'
-           :y y'
-           :w (max 0 (- (min (px (+ x w)) iw) x'))
-           :h (max 0 (- (min (px (+ y h)) ih) y'))}]
-    (debug "Fit" x y w h  "to" r)
-    (println "FIT" x y w h "->>>" r)
-    r))
+  (let [iw  (.getWidth im)
+        ih  (.getHeight im)
+        x'  (min iw (max 0 (px x)))
+        y'  (min ih (max 0 (px y)))
+        fit {:x x'
+             :y y'
+             :w (max 0 (- (min (px (+ x w)) iw) x'))
+             :h (max 0 (- (min (px (+ y h)) ih) y'))}]
+    (debug "Fit" x y w h "to" fit)
+    fit))
 
 (defn scroll-into-view! [node]
   (js/exec-in node "

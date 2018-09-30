@@ -1,7 +1,8 @@
 (ns cuic.impl.browser
   (:require [clojure.string :as string]
             [clojure.tools.logging :refer [trace debug error info]]
-            [cuic.impl.task-tracking :as tracking])
+            [cuic.impl.activity-tracking :as tracking]
+            [clojure.java.io :as io])
   (:import (java.io Closeable)
            (com.github.kklisura.cdt.launch ChromeArguments$Builder ChromeArguments ChromeLauncher)
            (com.github.kklisura.cdt.services ChromeDevToolsService ChromeService)
@@ -30,7 +31,7 @@
   (-> (name kw)
       (string/replace #"-(\w)" (comp string/upper-case last))))
 
-(defn- build-args [{:keys [headless] :or {headless true} :as opts}]
+(defn- build-args [{:keys [headless window-size] :or {headless true} :as opts}]
   (letfn [(with-arg [builder [key val]]
             (if-let [m (->> (seq (.getMethods ChromeArguments$Builder))
                             (filter #(and (= (camelize key) (.getName %))
@@ -38,13 +39,27 @@
                             (first))]
               (.invoke m builder (into-array Object [val]))
               builder))]
-    (->> (dissoc opts :headless)
-         (reduce with-arg (ChromeArguments/defaults headless))
-         (.build))))
+    (as-> (dissoc opts :headless :window-size) $
+          (if-let [{:keys [width height]} window-size]
+            (update $ :additional-arguments #(assoc % "window-size" (str width "," height)))
+            $)
+          (reduce with-arg (ChromeArguments/defaults headless) $)
+          (.build $))))
+
+(defn- get-tab [browser]
+  (or (some-> browser (.-tab))
+      (throw (IllegalStateException. "Browser is not open anymore"))))
+
+(defn- inject-runtime-deps! [^ChromeDevToolsService tools]
+  (debug "Enable internal runtime JavaScript dependencies")
+  (let [src (slurp (io/resource "js_deps/deps.js"))]
+    (-> (.getPage tools)
+        (.addScriptToEvaluateOnNewDocument src))))
 
 (defn- init-tab! [chrome-service chrome-tab]
   (let [devtools (.createDevToolsService chrome-service chrome-tab)
         tracking (tracking/init! devtools)]
+    (inject-runtime-deps! devtools)
     (Tab. chrome-service chrome-tab devtools tracking)))
 
 (defn launch! [options]
@@ -60,6 +75,9 @@
         (throw e)))))
 
 (defn tools ^ChromeDevToolsService [browser]
-  (if-let [tab (some-> browser (.-tab))]
-    (.-devtools tab)
-    (throw (IllegalStateException. "Browser is not open anymore"))))
+  (.-devtools (get-tab browser)))
+
+(defn activities [browser]
+  (-> (get-tab browser)
+      (.-tracking)
+      (tracking/activities)))

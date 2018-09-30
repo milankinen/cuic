@@ -86,6 +86,11 @@
   `(do ~@(map (fn [s] `(retry/loop* #(do ~s true) (:timeout *config*) '~s)) statements)
        nil))
 
+(defn running-activities
+  "Returns a vector of the currently running activities."
+  ([] (browser/activities (-browser))))
+
+
 (defn document
   "Returns the root document node or nil if document is not available"
   []
@@ -269,29 +274,15 @@
    and animations have been finished that were started after
    the mutation."
   [operation]
-  (operation)
-  (sleep 100)
-  #_(letfn [(watched-http-request? [{:keys [task-type request-type]}]
+  (letfn [(watched-task? [{:keys [task-type request-type]}]
             (and (= :http-request task-type)
                  (contains? #{:document :xhr} request-type)))
-          (tasks []
-            (->> (background-tasks)
-                 (filter watched-http-request?)
+          (watched-tasks []
+            (->> (running-activities)
+                 (filter watched-task?)
                  (set)))]
-    (let [before (tasks)]
+    (let [before (watched-tasks)]
       (operation)
-      ; JavScript apps are slow - let them some time to fire the requests
-      ; before we actually start polling them
+      ; JavScript apps are slow - let them some time to fire the requests before we actually start polling them
       (sleep 100)
-      (wait (empty? (difference before (tasks)))))))
-
-(comment
-  (defn background-tasks
-    "Returns a vector of the active background tasks."
-    [] (-> (browser/tracking (-browser))
-           (tracking/get-active-tasks)))
-
-
-
-
-  )
+      (wait (empty? (difference (watched-tasks) before))))))

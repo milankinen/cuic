@@ -2,42 +2,85 @@
   (:refer-clojure :exclude [eval])
   (:require [clojure.string :as string]
             [clojure.tools.logging :refer [debug]]
-            [clj-chrome-devtools.commands.runtime :as runtime]
-            [clj-chrome-devtools.commands.dom :as dom]
-            [cuic.impl.ws-invocation :refer [call]]
-            [cuic.impl.exception :as ex]
-            [cuic.impl.browser :refer [c]]))
+            [cuic.impl.exception :refer [call] :as ex]
+            [cuic.impl.browser :refer [tools]])
+  (:import (com.github.kklisura.cdt.protocol.types.runtime RemoteObject CallArgument)
+           (java.util Map)))
 
-(defn- handle-js-result [res]
-  (if (= "error" (:subtype (:result res)))
-    (throw (ex/js-error (:description (:result res)))))
-  (:value (:result res)))
+(defn- cljze [x]
+  (condp instance? x
+    Map (into {} (map (fn [[k v]] [(keyword k) (cljze v)]) x))
+    Iterable (mapv cljze x)
+    x))
 
-(defn node-id->object-id [browser node-id]
-  (-> (call dom/resolve-node (c browser) {:node-id node-id})
-      (get-in [:object :object-id])))
+(defn- node-id->object-id [browser node-id]
+  (-> (call (-> (.getDOM (tools browser))
+                (.resolveNode node-id nil nil)))
+      (.getObjectId)))
+
+(defn- call-fn-on [{:keys [id browser]} body args]
+  (-> (call (-> (.getRuntime (tools browser))
+                (.callFunctionOn (str "async function("
+                                      (string/join "," (map first args))
+                                      "){ " body " }")
+                                 (node-id->object-id browser id)
+                                 (apply list (map (fn [[_ val]] (doto (CallArgument.) (.setValue val))) args))
+                                 nil                        ; silent
+                                 true                       ; return by value
+                                 nil                        ; generate preview
+                                 nil                        ; user gesture
+                                 true                       ; await promise
+                                 nil                        ; execution context id
+                                 nil                        ; object group
+                                 )))
+      (.getResult)))
+
+(defn- wrap-async-expr [expr]
+  (str "(async function(){ try { return {value:" expr "} } catch(e) { return {error: e.toString()} } })()"))
+
+(defn- unwrap-async-result [^RemoteObject res]
+  (if (or (= "error" (some-> (.getSubtype res) (string/lower-case)))
+          (contains? (.getValue res) "error"))
+    (throw (ex/js-error (or (.getDescription res) (get (.getValue res) "error"))))
+    (get (.getValue res) "value")))
+
+(defn- handle-non-wrapped-result [^RemoteObject res]
+  (if (= "error" (some-> (.getSubtype res) (string/lower-case)))
+    (throw (ex/js-error (.getDescription res)))
+    (.getValue res)))
 
 (defn eval [browser expr & [command-line-api?]]
-  (-> (call runtime/evaluate
-            (c browser)
-            {:expression               (str "(async function(){ return " expr "})()")
-             :return-by-value          true
-             :include-command-line-api (true? command-line-api?)
-             :await-promise            true})
-      (handle-js-result)))
+  (debug "eval expr:" expr)
+  (-> (call (-> (.getRuntime (tools browser))
+                (.evaluate (wrap-async-expr expr)
+                           nil                              ; objectGroup
+                           (true? command-line-api?)        ; include command line api
+                           nil                              ; silent
+                           nil                              ; context id
+                           true                             ; return by value
+                           nil                              ; generate preview
+                           nil                              ; user gesture
+                           true                             ; await promise
+                           nil                              ; throw on side-effects
+                           nil                              ; timeout
+                           )))
+      (.getResult)
+      (unwrap-async-result)
+      (cljze)))
 
-(defn exec-in [{:keys [id browser] :as node} body & args]
+(defn exec-in [node body & args]
   (when node
-    (-> (call runtime/call-function-on
-              (c browser)
-              {:object-id            (node-id->object-id browser id)
-               :return-by-value      true
-               :function-declaration (str "async function("
-                                          (string/join "," (map first args))
-                                          "){ " body " }")
-               :arguments            (mapv (fn [[_ val]] {:value val}) args)
-               :await-promise        true})
-        (handle-js-result))))
+    (debug "exec-in node:" (:id node)
+           "\nbody:" body
+           "\nargs:" args)
+    (-> (call-fn-on node body args)
+        (handle-non-wrapped-result)
+        (cljze))))
 
 (defn eval-in [node expr]
-  (exec-in node (str "return " expr)))
+  (when node
+    (debug "eval-in node:" (:id node)
+           "\nexpr:"expr)
+    (-> (call-fn-on node (str "return " expr) [])
+        (handle-non-wrapped-result)
+        (cljze))))

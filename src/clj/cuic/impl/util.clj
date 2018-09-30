@@ -1,6 +1,5 @@
 (ns cuic.impl.util
-  (:require [cuic.impl.browser :refer [c]]
-            [cuic.impl.js-bridge :as js]))
+  (:require [cuic.impl.js-bridge :as js]))
 
 (defn scroll-into-view! [node]
   (js/exec-in node "

@@ -1,5 +1,6 @@
 (ns cuic.impl.exception
-  (:import (cuic ExecutionException WaitTimeoutException)))
+  (:import (cuic ExecutionException WaitTimeoutException)
+           (com.github.kklisura.cdt.services.exceptions ChromeDevToolsInvocationException)))
 
 (defn- eex-data [ex]
   (if (instance? ExecutionException ex)
@@ -14,7 +15,7 @@
       (WaitTimeoutException.)))
 
 (defn js-error [description]
-  (ExecutionException. "JavaScript error" false {:description description}))
+  (ExecutionException. (str "JavaScript error:\n" description) false {:description description}))
 
 (defn stale-node []
   (retryable "Can't use node because it's already removed from the DOM" {::type :stale}))
@@ -29,8 +30,13 @@
 (defn stale-node? [ex]
   (= :stale (::type (eex-data ex))))
 
-(defmacro safely [expr]
-  `(try ~expr (catch ExecutionException e# nil)))
+(defmacro call [call-expr]
+  `(try
+     ~call-expr
+     (catch ChromeDevToolsInvocationException e#
+       (case (.getCode e#)
+         -32000 (throw (stale-node))
+         (throw e#)))))
 
 (defmacro with-stale-ignored [expr]
   `(try

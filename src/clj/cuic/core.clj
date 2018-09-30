@@ -2,20 +2,16 @@
   (:refer-clojure :exclude [eval])
   (:require [clojure.string :as string]
             [clojure.set :refer [difference]]
-            [clj-chrome-devtools.commands.page :as page]
-            [clj-chrome-devtools.commands.dom :as dom]
-            [cuic.impl.ws-invocation :refer [call]]
-            [cuic.impl.exception :refer [with-stale-ignored]]
-            [cuic.impl.session :as session]
-            [cuic.impl.browser :as browser :refer [c]]
-            [cuic.impl.task-tracking :as tracking]
+            [cuic.impl.browser :as browser :refer [tools]]
             [cuic.impl.dom-node :refer [->DOMNode maybe existing visible]]
-            [cuic.impl.js-bridge :as js]
-            [cuic.impl.util :as util]
+            [cuic.impl.exception :refer [call with-stale-ignored]]
+            [cuic.impl.retry :as retry]
             [cuic.impl.html :as html]
+            [cuic.impl.js-bridge :as js]
             [cuic.impl.input :as input]
-            [cuic.impl.retry :as retry])
-  (:import (java.io Closeable)))
+            [cuic.impl.util :as util])
+  (:import (java.io Closeable)
+           (com.github.kklisura.cdt.services ChromeDevToolsService)))
 
 (declare default-mutation-wrapper)
 
@@ -55,43 +51,19 @@
    ** Used internally, do not touch! **"
   ([] (or *browser* (throw (IllegalStateException. "No browser set! Did you forget to call `use-browser`?")))))
 
+(defn- -t [] ^ChromeDevToolsService (tools (-browser)))
+
 (defn sleep
   "Holds the execution the given milliseconds"
   [ms]
   {:pre [(pos? ms)]}
   (Thread/sleep ms))
 
-(defn default-session
-  "Creates a new Chrome/Chromium session using default user's profile and settings.
-   If user has already browser sessions open, this session shares the contents of those
-   sessions."
-  ([^String executable]
-   (session/default executable))
-  ([] (default-session nil)))
-
-(defn new-session!
-  "Creates a new unique Chrome/Chromium session that does not share anything with
-   other open sessions / browsers. This is the recommended way of creating new
-   sessions for automated tests"
-  ([window-size ^String executable]
-   {:pre [(or (nil? window-size)
-              (and (integer? (:width window-size))
-                   (integer? (:height window-size))))]}
-   (session/create! executable window-size))
-  ([window-size] (new-session! window-size nil))
-  ([] (new-session! nil)))
-
-(defn open-browser!
-  "Opens a new browser window to the given session"
-  ([session {:keys [^Long rdport
-                    ^Boolean headless
-                    ^Boolean gpu]
-             :or   {rdport   nil
-                    headless true
-                    gpu      false}
-             :as   opts}]
-   (browser/open! session opts))
-  ([session] (open-browser! session {})))
+(defn launch!
+  "TODO docs"
+  ([opts]
+   (browser/launch! opts))
+  ([] (launch! {:headless true})))
 
 (defn close!
   "Closes the given resource"
@@ -114,10 +86,26 @@
   `(do ~@(map (fn [s] `(retry/loop* #(do ~s true) (:timeout *config*) '~s)) statements)
        nil))
 
-(defn background-tasks
-  "Returns a vector of the active background tasks."
-  [] (-> (browser/tracking (-browser))
-         (tracking/get-active-tasks)))
+(defn document
+  "Returns the root document node or nil if document is not available"
+  []
+  (-> (call (-> (.getDOM (-t)) (.getDocument)))
+      (.getNodeId)
+      (->DOMNode (-browser))
+      (with-meta {::document true})))
+
+(defn q
+  "Performs a CSS query to the subtree of the given root node and returns a
+   vector of matched nodes. If called without the root node, page document node
+   is used as a root node for the query."
+  ([root-node ^String selector]
+   (or (-run-node-query [n root-node]
+         (->> (call (-> (.getDOM (-t))
+                        (.querySelectorAll (:id root-node) selector)))
+              (mapv #(->DOMNode % (:browser n)))))
+       []))
+  ([^String selector]
+   (q (document) selector)))
 
 (defn eval
   "Evaluate JavaScript expression in the global JS context. Return value of the
@@ -131,27 +119,6 @@
    points to the given node. Return value of the expression is converted into
    Clojure data structure. Supports async expressions (await keyword)."
   (js/eval-in (existing node-ctx) js-code))
-
-(defn document
-  "Returns the root document node or nil if document is not available"
-  []
-  (-> (call dom/get-document (c (-browser)) {:depth 1})
-      (get-in [:root :node-id])
-      (->DOMNode (-browser))
-      (with-meta {::document true})))
-
-(defn q
-  "Performs a CSS query to the subtree of the given root node and returns a
-   vector of matched nodes. If called without the root node, page document node
-   is used as a root node for the query."
-  ([root-node ^String selector]
-   (or (-run-node-query [n root-node]
-         (->> (call dom/query-selector-all (c (:browser n)) {:node-id (:id n) :selector selector})
-              (:node-ids)
-              (mapv #(->DOMNode % (:browser n)))))
-       []))
-  ([^String selector]
-   (q (document) selector)))
 
 (defn value
   "Returns the current value of the given input element."
@@ -172,8 +139,7 @@
   (node is a map of {:keys [tag attrs content]})"
   [node]
   (-run-node-query [n node]
-    (->> (call dom/get-outer-html (c (:browser n)) {:node-id (:id n)})
-         (:outer-html)
+    (->> (call (.getOuterHTML (.getDOM (-t)) (:id n) nil nil))
          (html/parse (true? (::document (meta n)))))))
 
 (defn text-content
@@ -188,8 +154,7 @@
   "Returns a map of attributes and their values for the given DOM node"
   [node]
   (or (-run-node-query [n node]
-        (->> (call dom/get-attributes (c (:browser n)) {:node-id (:id n)})
-             (:attributes)
+        (->> (call (.getAttributes (.getDOM (-t)) (:id n)))
              (partition 2 2)
              (map (fn [[k v]] [(keyword k) v]))
              (into {})))
@@ -237,11 +202,12 @@
   (or (-run-node-query [n node]
         (js/eval-in n "!!this.checked"))))
 
+
 (defn goto!
   "Navigates the page to the given URL."
   [^String url]
   (-run-mutation
-    (call page/navigate (c (-browser)) {:url url})))
+    (call (.navigate (.getPage (-t)) url))))
 
 (defn scroll-to!
   "Scrolls window to the given DOM node if that node is not already visible
@@ -269,7 +235,8 @@
   [node]
   (-run-node-mutation [n node]
     (util/scroll-into-view! n)
-    (call dom/focus (c (:browser n)) {:node-id (:id n)})))
+    (call (-> (.getDOM (tools (:browser n)))
+              (.focus (:id node) nil nil)))))
 
 (defn select-text!
   "Selects all text from the given input DOM element. If element is
@@ -302,7 +269,9 @@
    and animations have been finished that were started after
    the mutation."
   [operation]
-  (letfn [(watched-http-request? [{:keys [task-type request-type]}]
+  (operation)
+  (sleep 100)
+  #_(letfn [(watched-http-request? [{:keys [task-type request-type]}]
             (and (= :http-request task-type)
                  (contains? #{:document :xhr} request-type)))
           (tasks []
@@ -315,3 +284,14 @@
       ; before we actually start polling them
       (sleep 100)
       (wait (empty? (difference before (tasks)))))))
+
+(comment
+  (defn background-tasks
+    "Returns a vector of the active background tasks."
+    [] (-> (browser/tracking (-browser))
+           (tracking/get-active-tasks)))
+
+
+
+
+  )

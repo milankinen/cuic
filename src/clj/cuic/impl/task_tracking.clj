@@ -1,14 +1,15 @@
 (ns cuic.impl.task-tracking
   (:require [clojure.string :as string]
-            [clojure.core.async :refer [go-loop <!]]
-            [clojure.tools.logging :refer [debug info error]]
-            [clj-chrome-devtools.events :as events]
-            [clj-chrome-devtools.commands.page :as page]
-            [clj-chrome-devtools.commands.network :as network]
-            [cuic.impl.ws-invocation :refer [call]])
-  (:import (java.io Closeable)))
+            [clojure.tools.logging :refer [debug info error]])
+  (:import (java.io Closeable)
+           (com.github.kklisura.cdt.services ChromeDevToolsService)
+           (com.github.kklisura.cdt.protocol.support.types EventHandler EventListener)))
 
-(defn- handle-request-sent [state {:keys [params]}]
+(defn- unsubscribe-all! [listeners]
+  (doseq [^EventListener li listeners]
+    (.off li)))
+
+(defn- request-will-be-sent [state {:keys [params]}]
   (let [request-id (:request-id params)
         request    {:task-type    :http-request
                     :request-type (keyword (string/lower-case (:type params)))
@@ -17,52 +18,35 @@
                     :frame-id     (:frame-id (:request params))}]
     (assoc state request-id request)))
 
-(defn- handle-request-finished [state {:keys [params]}]
+(defn- response-received [state {:keys [params]}]
   (dissoc state (:request-id params)))
 
-(defn- handle-frame-load [state {:keys [params]}]
+(defn- frame-started-loading [state {:keys [params]}]
   ; frame reloaded - clear previous requests
   (let [frame-id (:frame-id params)]
     (->> state
          (remove #(= frame-id (:frame-id (second %))))
          (into {}))))
 
-(defn- stop! [track-state conn]
-  (when track-state
-    (debug "Stopping task tracking")
-    (doseq [[[domain event] ch] (:channels track-state)]
-      (try
-        (events/unlisten conn domain event ch)
-        (catch Exception e
-          (error "Got error when closing tracking" domain event ", message:" (.getMessage e)))))
-    nil))
-
-(defrecord Tracking [conn state-atom]
+(deftype TaskTracker [tasks listeners]
   Closeable
   (close [_]
-    (swap! state-atom stop! conn)))
+    (swap! listeners unsubscribe-all!)))
 
-(defn start! [conn]
-  (let [state-atom (atom {:channels {} :state {}})]
-    (letfn [(listen! [domain event handler]
-              (let [ch (events/listen conn domain event)]
-                (swap! state-atom assoc-in [:channels [domain event]] ch)
-                (go-loop []
-                  (when-let [msg (<! ch)]
-                    (swap! state-atom update :state #(handler % msg))
-                    (recur)))))]
-      (try
-        (debug "Start task tracking")
-        (call network/enable conn {})
-        (call page/enable conn {})
-        ; anonymous functions for easier REPLing
-        (listen! :page :frame-started-loading #(handle-frame-load %1 %2))
-        (listen! :network :request-will-be-sent #(handle-request-sent %1 %2))
-        (listen! :network :response-received #(handle-request-finished %1 %2))
-        (->Tracking conn state-atom)
-        (catch Exception e
-          (swap! state-atom stop! conn)
-          (throw e))))))
+(defn init! [^ChromeDevToolsService tools]
+  (let [tasks   (atom {})
+        li      (atom [])
+        page    (.getPage tools)
+        network (.getNetwork tools)
+        handle  #(reify EventHandler (onEvent [_ e] (% tasks e)))]
+    (try
+      (swap! li conj (.onFrameStartedLoading page (handle frame-started-loading)))
+      (swap! li conj (.onRequestWillBeSent network (handle request-will-be-sent)))
+      (swap! li conj (.onResponseReceived network (handle response-received)))
+      (.enable page)
+      (.enable network)
+      (TaskTracker. tasks li)
+      (catch Exception e
+        (unsubscribe-all! li)
+        (throw e)))))
 
-(defn get-active-tasks [tracking]
-  (vals (:state @(:state-atom tracking))))

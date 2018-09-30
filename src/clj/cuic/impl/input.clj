@@ -1,18 +1,14 @@
 (ns cuic.impl.input
   (:require [clojure.string :as string]
-            [clojure.set :refer [map-invert]]
             [clojure.java.io :as io]
-            [cheshire.core :as json]
-            [clj-chrome-devtools.commands.input :as input]
-            [cuic.impl.browser :refer [c]]
-            [cuic.impl.ws-invocation :refer [call]])
-  (:import (clojure.lang Symbol)))
-
-(defn- to-int [num]
-  (if (integer? num) num (Math/round (double num))))
+            [clojure.data.json :as json]
+            [cuic.impl.exception :refer [call]]
+            [cuic.impl.browser :refer [tools]])
+  (:import (clojure.lang Symbol)
+           (com.github.kklisura.cdt.protocol.types.input DispatchMouseEventType DispatchMouseEventButton DispatchKeyEventType)))
 
 (defonce ^:private layout
-  (json/parse-string (slurp (io/resource "us_keyboard_layout.json"))))
+  (json/read-str (slurp (io/resource "us_keyboard_layout.json"))))
 
 (defonce ^:private active-modifiers
   (atom #{}))
@@ -40,13 +36,47 @@
                             :code                     (get m "code")}]))
        (into {})))
 
+(defn- dispatch-kb-event! [browser {:keys [type modifiers key code key-identifier native-virtual-key-code
+                                           windows-virtual-key-code text unmodified-text] :as ev}]
+  (call (-> (.getInput (tools browser))
+            (.dispatchKeyEvent
+              type
+              modifiers
+              nil
+              text
+              unmodified-text
+              key-identifier
+              code
+              key
+              (some-> windows-virtual-key-code (int))
+              (some-> native-virtual-key-code (int))
+              nil                                           ; autorepeat?
+              nil                                           ; is keypad?
+              nil                                           ; is system key?
+              nil                                           ; location
+              ))))
+
+(defn- dispatch-mouse-event! [browser {:keys [x y type modifiers click-count button delta-x delta-y]}]
+  (call (-> (.getInput (tools browser))
+            (.dispatchMouseEvent
+              type
+              (double x)
+              (double y)
+              modifiers
+              nil                                           ; timestamp
+              button
+              (some-> click-count (int))
+              (some-> delta-x (double))
+              (some-> delta-y (double))))))
+
 (defn- resolve-aliases [xs]
   (map #(if (contains? aliases %) (with-meta (get aliases %) (meta %)) %) xs))
 
 (defn- current-modifier-bits [browser]
   (->> (filter #(= browser (first %)) @active-modifiers)
        (map (comp modifier-bits second))
-       (reduce bit-or 0)))
+       (reduce bit-or 0)
+       (int)))
 
 (defn- sym->event [sym]
   (-> (string/capitalize (name sym))
@@ -75,17 +105,17 @@
   (as-> (sym->event sym) $
         (assoc $ :type event-type
                  :modifiers (current-modifier-bits browser))
-        (call input/dispatch-key-event (c browser) $)))
+        (dispatch-kb-event! browser $)))
 
 (defn- -key-down! [browser sym]
-  (dispatch-event! browser "rawKeyDown" sym)
+  (dispatch-event! browser DispatchKeyEventType/RAW_KEY_DOWN sym)
   (if (contains? modifier-bits sym)
     (swap! active-modifiers conj [browser sym])))
 
 (defn- -key-up! [browser sym]
   (if (contains? modifier-bits sym)
     (swap! active-modifiers disj [browser sym]))
-  (dispatch-event! browser "keyUp" sym))
+  (dispatch-event! browser DispatchKeyEventType/KEY_UP sym))
 
 (defmulti press-key! (fn [_ key] (type key)))
 
@@ -94,13 +124,13 @@
     "\n" (press-key! browser 'enter)
     "\t" (press-key! browser 'tab)
     "\r" nil
-    (call input/dispatch-key-event
-          (c browser)
-          {:type            "char"
-           :text            ch
-           :key             ch
-           :unmodified-text ch
-           :modifiers       (current-modifier-bits browser)})))
+    (dispatch-kb-event!
+      browser
+      {:type            DispatchKeyEventType/CHAR
+       :text            (str ch)
+       :key             (str ch)
+       :unmodified-text (str ch)
+       :modifiers       (current-modifier-bits browser)})))
 
 (defmethod press-key! Symbol [browser sym]
   (doseq [m (get-modifiers sym)]
@@ -156,21 +186,21 @@
     (-key-down! browser key)))
 
 (defn mouse-move! [browser {:keys [x y]}]
-  (call input/dispatch-mouse-event
-        (c browser)
-        {:x           (to-int x)
-         :y           (to-int y)
-         :type        "mouseMoved"
-         :click-count 1
-         :button      "left"}))
+  (dispatch-mouse-event!
+    browser
+    {:x           x
+     :y           y
+     :type        DispatchMouseEventType/MOUSE_MOVED
+     :click-count 1
+     :button      DispatchMouseEventButton/LEFT}))
 
 (defn mouse-click! [browser {:keys [x y] :as point}]
-  (let [ev {:x           (to-int x)
-            :y           (to-int y)
+  (let [ev {:x           x
+            :y           y
             :click-count 1
-            :button      "left"}]
+            :button      DispatchMouseEventButton/LEFT}]
     (mouse-move! browser point)
-    (call input/dispatch-mouse-event (c browser) (assoc ev :type "mousePressed"))
-    (call input/dispatch-mouse-event (c browser) (assoc ev :type "mouseReleased"))))
+    (dispatch-mouse-event! browser (assoc ev :type DispatchMouseEventType/MOUSE_PRESSED))
+    (dispatch-mouse-event! browser (assoc ev :type DispatchMouseEventType/MOUSE_RELEASED))))
 
 

@@ -3,15 +3,14 @@
   :url "https://github.com/milankinen/cuic"
   :license {:name "MIT"
             :url  "https://opensource.org/licenses/MIT"}
-  :dependencies [[clj-chrome-devtools "20180528"]
-                 [org.clojure/tools.logging "0.4.1"]
-                 [commons-io/commons-io "2.6"]
+  :dependencies [[org.clojure/tools.logging "0.4.1"]
+                 [org.clojure/data.json "0.2.6"]
+                 [com.github.kklisura.cdt/cdt-java-client "1.3.1"]
                  [org.jsoup/jsoup "1.11.3"]]
   :plugins [[lein-ancient "0.6.15"]]
   :source-paths ["src/clj"]
   :java-source-paths ["src/java"]
-  :profiles {:dev {:dependencies [[org.clojure/clojure "1.9.0"]
-                                  [ch.qos.logback/logback-classic "1.2.3"]]}}
+  :profiles {:dev {:dependencies [[org.clojure/clojure "1.9.0"]]}}
   :deploy-repositories [["releases" :clojars]]
   :aliases {"t" "test"}
   :release-tasks [["deploy"]])

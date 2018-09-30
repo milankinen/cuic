@@ -106,7 +106,7 @@
   ([root-node ^String selector]
    (or (-run-node-query [n root-node]
          (->> (call (-> (.getDOM (-t))
-                        (.querySelectorAll (node-id root-node) selector)))
+                        (.querySelectorAll (node-id n) selector)))
               (map (partial node-id->object-id (:browser n)))
               (mapv #(->DOMNode % (:browser n)))))
        []))

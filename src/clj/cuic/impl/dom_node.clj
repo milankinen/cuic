@@ -64,10 +64,10 @@
 
 (defn visible [x]
   (cond
-    (instance? DOMNode x) (if (js/eval-in x "!!this.offsetParent") x)
+    (instance? DOMNode x) (if (js/eval-in x "!!this.offsetParent") x (throw (ex/retryable "Node is not visible" {:node x})))
     (sequential? x)
     (case (count x)
-      1 (existing (first x))
+      1 (visible (first x))
       0 (throw (ex/retryable "Node list can't be empty"))
       (throw (ex/retryable "Node list must contain exactly one node" {:list (vec x)})))
     :else (throw (ex/retryable "Value is not a valid DOM node" {:value x}))))

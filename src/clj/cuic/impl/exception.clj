@@ -20,9 +20,6 @@
 (defn stale-node []
   (retryable "Can't use node because it's already removed from the DOM" {::type :stale}))
 
-(defn node-not-visible []
-  (retryable "DOM node is not visible" {::type :not-visible}))
-
 (defn retryable? [ex]
   (and (instance? ExecutionException ex)
        (true? (.-retryable ex))))

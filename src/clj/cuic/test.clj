@@ -2,6 +2,7 @@
   (:require [clojure.test :as t]
             [clojure.pprint :refer [pprint]]
             [clojure.string :as string]
+            [clojure.tools.logging :refer [debug]]
             [clojure.java.io :as io]
             [clojure.edn :as edn]
             [cuic.core :refer [wait] :as core])
@@ -11,10 +12,9 @@
            (com.github.kilianB.hashAlgorithms PerceptiveHash)))
 
 (defn- images-match? [^BufferedImage expected ^BufferedImage actual]
-  (println expected)
-  (println actual)
   (let [ph (PerceptiveHash. (:hash-bits (:image-match core/*config*)))
         d  (.hammingDistance (.hash ph expected) (.hash ph actual))]
+    (debug "Got image distance" d)
     (< d (:threshold (:image-match core/*config*)))))
 
 (defn- snapshots-dir ^File []

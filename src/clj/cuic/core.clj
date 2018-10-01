@@ -11,7 +11,8 @@
             [cuic.impl.input :as input]
             [cuic.impl.util :as util])
   (:import (java.io Closeable)
-           (com.github.kklisura.cdt.services ChromeDevToolsService)))
+           (com.github.kklisura.cdt.services ChromeDevToolsService)
+           (java.awt.image BufferedImage)))
 
 (declare default-mutation-wrapper)
 
@@ -19,7 +20,10 @@
 (defonce ^:dynamic *config*
   {:typing-speed     :normal
    :timeout          10000
-   :mutation-wrapper #(default-mutation-wrapper %)})
+   :mutation-wrapper #(default-mutation-wrapper %)
+   :snapshot-dir     "test/__snapshots__"
+   ; TODO figure out correct values for these?
+   :image-match      {:hash-bits 512 :threshold 4}})
 
 (defmacro -run-mutation
   "Runs the given code block inside mutation wrapper.
@@ -209,17 +213,16 @@
         (js/eval-in n "!!this.checked"))))
 
 (defn page-screenshot
-  "Takes a screen capture from the currently visible page and returns a byte array
-   of the captured image (encoded in PNG format)"
+  "Takes a screen capture from the currently visible page and returns a
+   BufferedImage instance containing the screenshot."
   ([{:keys [masked-nodes]}]
    (-> (util/scaled-screenshot (-browser))
-       (util/mask-nodes masked-nodes)
-       (util/png-bytes)))
+       (util/mask-nodes masked-nodes)))
   ([] (page-screenshot {})))
 
 (defn screenshot
-  "Takes a screen capture from the given DOM node and returns a byte array of the
-   captured image (encoded in PNG format). DOM node must be visible or otherwise
+  "Takes a screen capture from the given DOM node and returns a BufferedImage
+   instance containing the screenshot. DOM node must be visible or otherwise
    an exception is thrown."
   ([node {:keys [masked-nodes]}]
     ; for some reason, Chrome's "clip" option in .captureScreenshot does not match the
@@ -229,9 +232,14 @@
          bb (util/bounding-box n)]
      (-> (util/scaled-screenshot (-browser))
          (util/mask-nodes masked-nodes)
-         (util/crop (:left bb) (:top bb) (:width bb) (:height bb))
-         (util/png-bytes))))
+         (util/crop (:left bb) (:top bb) (:width bb) (:height bb)))))
   ([node] (screenshot node {})))
+
+(defn png-bytes
+  "Converts the given (screenshot) image to PNG format and returns a byte array
+   of the encoded data."
+  [^BufferedImage image]
+  (util/png-bytes image))
 
 (defn goto!
   "Navigates the page to the given URL."

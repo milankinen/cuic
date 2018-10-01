@@ -65,9 +65,10 @@
 (defn launch! [options]
   (let [chrome-laucher (ChromeLauncher.)
         chrome-service (.launch chrome-laucher (build-args options))
-        chrome-tab     (->> (.getTabs chrome-service)
-                            (filter #(= "chrome://newtab/" (.getUrl %)))
-                            (first))]
+        chrome-tab     (or (->> (.getTabs chrome-service)
+                                (filter #(= "chrome://newtab/" (.getUrl %)))
+                                (first))
+                           (.createTab chrome-service))]
     (try
       (Browser. chrome-laucher (init-tab! chrome-service chrome-tab))
       (catch Exception e

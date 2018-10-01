@@ -8,7 +8,7 @@
                  [org.clojure/data.json "0.2.6"]
                  [com.github.kklisura.cdt/cdt-java-client "1.3.1"]
                  [org.jsoup/jsoup "1.11.3"]
-                 [com.github.kilianB/JImageHash "1.0.1"]]
+                 [com.github.kilianB/JImageHash "1.0.2"]]
   :source-paths ["src/clj"]
   :java-source-paths ["src/java"]
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.9.0"]

@@ -33,20 +33,20 @@
 (defn actual-file [id ext]
   (io/file (snapshots-dir) (str (snapshot-filename id) ".actual." ext)))
 
+(defn read-edn [^File f]
+  (if (.exists f)
+    (edn/read-string (slurp f))))
+
+(defn read-image [^File f]
+  (if (.exists f)
+    (ImageIO/read f)))
+
 (defn- ensure-snapshot-dir! []
   (let [dir (snapshots-dir)]
     (when-not (.exists dir)
       (.mkdirs dir)
       (spit (io/file dir ".gitignore") "*.actual*\n"))
     dir))
-
-(defn- read-edn [^File f]
-  (if (.exists f)
-    (edn/read-string (slurp f))))
-
-(defn- read-image [^File f]
-  (if (.exists f)
-    (ImageIO/read f)))
 
 (defn- test-snapshot [id actual predicate read write! ext]
   (ensure-snapshot-dir!)

@@ -1,4 +1,11 @@
 language: clojure
+dist: trusty
+sudo: true
+addons:
+  chrome: stable
+cache:
+  directories:
+    - $HOME/.m2
 before_script: lein ancient
 script:
   - cd test/todomvc && lein cljsbuild once min && cd ../..

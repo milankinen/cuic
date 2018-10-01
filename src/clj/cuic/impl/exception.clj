@@ -4,7 +4,7 @@
 
 (defn- ex-type [ex]
   (if (instance? ExecutionException ex)
-    (.-type ex)))
+    (.getType ex)))
 
 (defn retryable [^String msg & [data]]
   (ExecutionException. msg true nil (or data {}) nil))
@@ -23,7 +23,7 @@
 
 (defn retryable? [ex]
   (and (instance? ExecutionException ex)
-       (true? (.-retryable ex))))
+       (true? (.isRetryable ex))))
 
 (defn stale-node? [ex]
   (= :stale (ex-type ex)))

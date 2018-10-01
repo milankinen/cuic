@@ -1,13 +1,14 @@
 (ns cuic.impl.retry
-  (:require [cuic.impl.exception :as ex]))
+  (:require [cuic.impl.exception :as ex])
+  (:import (cuic ExecutionException)))
 
 (defn try-run [f]
   (try
     {:value (f)}
-    (catch Exception e
-      (if-not (ex/retryable? e)
-        (throw e))
-      {:error e})))
+    (catch ExecutionException e
+      (if (ex/retryable? e)
+        {:error e}
+        (throw e)))))
 
 (defn loop* [f timeout expr-form]
   (loop [start (System/currentTimeMillis)]

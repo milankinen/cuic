@@ -1,3 +1,5 @@
 language: clojure
 before_script: lein ancient
-script: lein t
+script:
+  - cd test/todomvc && lein cljsbuild once min && cd ../..
+  - lein t

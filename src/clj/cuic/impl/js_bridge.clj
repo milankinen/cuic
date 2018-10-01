@@ -2,7 +2,7 @@
   (:refer-clojure :exclude [eval])
   (:require [clojure.string :as string]
             [clojure.tools.logging :refer [debug]]
-            [cuic.impl.exception :refer [call] :as ex]
+            [cuic.impl.exception :refer [call-node call] :as ex]
             [cuic.impl.browser :refer [tools]])
   (:import (com.github.kklisura.cdt.protocol.types.runtime RemoteObject CallArgument)
            (java.util Map)))
@@ -14,20 +14,20 @@
     x))
 
 (defn- call-fn-on [{:keys [id browser]} body args]
-  (-> (call (-> (.getRuntime (tools browser))
-                (.callFunctionOn (str "async function("
-                                      (string/join "," (map first args))
-                                      "){ " body " }")
-                                 id
-                                 (apply list (map (fn [[_ val]] (doto (CallArgument.) (.setValue val))) args))
-                                 nil                        ; silent
-                                 true                       ; return by value
-                                 nil                        ; generate preview
-                                 nil                        ; user gesture
-                                 true                       ; await promise
-                                 nil                        ; execution context id
-                                 nil                        ; object group
-                                 )))
+  (-> (call-node (-> (.getRuntime (tools browser))
+                     (.callFunctionOn (str "async function("
+                                           (string/join "," (map first args))
+                                           "){ " body " }")
+                                      id
+                                      (apply list (map (fn [[_ val]] (doto (CallArgument.) (.setValue val))) args))
+                                      nil                   ; silent
+                                      true                  ; return by value
+                                      nil                   ; generate preview
+                                      nil                   ; user gesture
+                                      true                  ; await promise
+                                      nil                   ; execution context id
+                                      nil                   ; object group
+                                      )))
       (.getResult)))
 
 (defn- wrap-async-expr [expr]

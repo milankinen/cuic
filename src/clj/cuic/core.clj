@@ -4,7 +4,7 @@
             [clojure.set :refer [difference]]
             [cuic.impl.browser :as browser :refer [tools]]
             [cuic.impl.dom-node :refer [->DOMNode maybe existing visible node-id node-id->object-id]]
-            [cuic.impl.exception :refer [call with-stale-ignored]]
+            [cuic.impl.exception :refer [call call-node with-stale-ignored]]
             [cuic.impl.retry :as retry]
             [cuic.impl.html :as html]
             [cuic.impl.js-bridge :as js]
@@ -98,7 +98,7 @@
 (defn document
   "Returns the root document node or nil if document is not available"
   []
-  (as-> (call (-> (.getDOM (-t)) (.getDocument))) $
+  (as-> (call-node (-> (.getDOM (-t)) (.getDocument))) $
         (node-id->object-id (-browser) (.getNodeId $))
         (->DOMNode $ (-browser))
         (with-meta $ {::document true})))
@@ -149,7 +149,7 @@
   (node is a map of {:keys [tag attrs content]})"
   [node]
   (-run-node-query [n node]
-    (->> (call (.getOuterHTML (.getDOM (-t)) (node-id n) nil nil))
+    (->> (call-node (.getOuterHTML (.getDOM (-t)) (node-id n) nil nil))
          (html/parse (true? (::document (meta n)))))))
 
 (defn text-content
@@ -164,7 +164,7 @@
   "Returns a map of attributes and their values for the given DOM node"
   [node]
   (or (-run-node-query [n node]
-        (->> (call (.getAttributes (.getDOM (-t)) (node-id n)))
+        (->> (call-node (.getAttributes (.getDOM (-t)) (node-id n)))
              (partition 2 2)
              (map (fn [[k v]] [(keyword k) v]))
              (into {})))
@@ -273,8 +273,8 @@
   [node]
   (-run-node-mutation [n node]
     (util/scroll-into-view! n)
-    (call (-> (.getDOM (tools (:browser n)))
-              (.focus (node-id node) nil nil)))))
+    (call-node (-> (.getDOM (tools (:browser n)))
+                   (.focus (node-id node) nil nil)))))
 
 (defn select-text!
   "Selects all text from the given input DOM element. If element is

@@ -1,14 +1,16 @@
 package cuic;
 
-import java.util.Map;
+import clojure.lang.ExceptionInfo;
+import clojure.lang.IPersistentMap;
+import clojure.lang.Keyword;
 
-public class ExecutionException extends RuntimeException {
+public class ExecutionException extends ExceptionInfo {
   public final boolean retryable;
-  public final Map<Object, Object> data;
+  public final Keyword type;
 
-  public ExecutionException(String message, boolean retryable, Map<Object, Object> data) {
-    super(message);
-    this.data = data;
+  public ExecutionException(String message, boolean retryable, Keyword type, IPersistentMap data, Throwable cause) {
+    super(message, data, cause);
     this.retryable = retryable;
+    this.type = type;
   }
 }

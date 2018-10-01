@@ -1,7 +1,7 @@
 (ns cuic.impl.util
   (:require [clojure.tools.logging :refer [debug]]
             [cuic.impl.js-bridge :as js]
-            [cuic.impl.exception :refer [call]]
+            [cuic.impl.exception :refer [call-node call]]
             [cuic.impl.browser :refer [tools]]
             [cuic.impl.dom-node :refer [visible]])
   (:import (java.util Base64)

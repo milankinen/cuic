@@ -2,39 +2,45 @@
   (:import (cuic ExecutionException WaitTimeoutException)
            (com.github.kklisura.cdt.services.exceptions ChromeDevToolsInvocationException)))
 
-(defn- eex-data [ex]
+(defn- ex-type [ex]
   (if (instance? ExecutionException ex)
-    (.-data ex)))
+    (.-type ex)))
 
 (defn retryable [^String msg & [data]]
-  (ExecutionException. msg true data))
+  (ExecutionException. msg true nil data nil))
 
 (defn timeout [expr reason]
-  (-> (str "Timeout waiting for expression: " expr
-           "\nReason: " reason)
-      (WaitTimeoutException.)))
+  (WaitTimeoutException. "Wait timeout exceeded" {:expression expr :reason reason} nil))
 
 (defn js-error [description]
-  (ExecutionException. (str "JavaScript error:\n" description) false {:description description}))
+  (ExecutionException. "JavaScript error" false :js-error {:description description} nil))
 
-(defn stale-node []
-  (retryable "Can't use node because it's already removed from the DOM" {::type :stale}))
+(defn stale-node [cause]
+  (ExecutionException. "Node does not exist in DOM anymore" true :stale {} cause))
+
+(defn devtools-error [cause]
+  (ExecutionException. "Protocol exception occurred" false :protocol {} cause))
 
 (defn retryable? [ex]
   (and (instance? ExecutionException ex)
        (true? (.-retryable ex))))
 
 (defn stale-node? [ex]
-  (= :stale (::type (eex-data ex))))
+  (= :stale (ex-type ex)))
+
+(defmacro call-node [call-expr]
+  `(try
+     ~call-expr
+     (catch ChromeDevToolsInvocationException e#
+       (if (= -32000 (.getCode e#))
+         (throw (stale-node e#))
+         (throw (devtools-error e#))))))
 
 (defmacro call [call-expr]
   `(try
      ~call-expr
      (catch ChromeDevToolsInvocationException e#
-       (if (and (= -32000 (.getCode e#))
-                (= "Cannot find context with specified id" (.getMessage e#)))
-         (throw (stale-node))
-         (throw e#)))))
+       (throw (devtools-error e#)))))
 
 (defmacro with-stale-ignored [expr]
   `(try

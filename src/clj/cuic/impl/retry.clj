@@ -16,7 +16,7 @@
         (:value result)
         (do (when (> (- (System/currentTimeMillis) start) timeout)
               (let [reason (or (:error result)
-                               (str "value was " (pr-str (:value result))))]
+                               (str "Latest value was " (pr-str (:value result))))]
                 (throw (ex/timeout expr-form reason))))
             (Thread/sleep 50)
             (recur start))))))

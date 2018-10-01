@@ -1,4 +1,4 @@
-target
+/target
 /classes
 /checkouts
 pom.xml
@@ -11,4 +11,3 @@ pom.xml.asc
 *.iml
 /resources/js_deps/node_modules
 #/resources/js_deps/deps.js
-public

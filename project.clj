@@ -9,10 +9,15 @@
                  [com.github.kklisura.cdt/cdt-java-client "1.3.1"]
                  [org.jsoup/jsoup "1.11.3"]
                  [com.github.kilianB/JImageHash "1.0.1"]]
-  :plugins [[lein-ancient "0.6.15"]]
   :source-paths ["src/clj"]
   :java-source-paths ["src/java"]
-  :profiles {:dev {:dependencies [[org.clojure/clojure "1.9.0"]]}}
+  :profiles {:dev {:dependencies [[org.clojure/clojure "1.9.0"]
+                                  [http-kit "2.3.0"]
+                                  [compojure "1.6.1"]
+                                  [ch.qos.logback/logback-classic "1.2.3"]
+                                  [eftest "0.5.3"]]
+                   :plugins      [[lein-ancient "0.6.15"]]}}
   :deploy-repositories [["releases" :clojars]]
-  :aliases {"t" "test"}
+  :aliases {"test" ["trampoline" "run" "-m" "test-runner/run-tests-cli"]
+            "t"    ["test"]}
   :release-tasks [["deploy"]])

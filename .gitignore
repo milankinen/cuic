@@ -10,5 +10,5 @@ pom.xml.asc
 /.idea
 *.iml
 /resources/js_deps/node_modules
-/resources/js_deps/deps.js
+#/resources/js_deps/deps.js
 public

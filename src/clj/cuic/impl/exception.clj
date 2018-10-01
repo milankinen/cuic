@@ -7,7 +7,7 @@
     (.-type ex)))
 
 (defn retryable [^String msg & [data]]
-  (ExecutionException. msg true nil data nil))
+  (ExecutionException. msg true nil (or data {}) nil))
 
 (defn timeout [expr reason]
   (WaitTimeoutException. "Wait timeout exceeded" {:expression expr :reason reason} nil))
@@ -16,7 +16,7 @@
   (ExecutionException. "JavaScript error" false :js-error {:description description} nil))
 
 (defn stale-node [cause]
-  (ExecutionException. "Node does not exist in DOM anymore" true :stale {} cause))
+  (ExecutionException. "Node not found from DOM" true :stale {} cause))
 
 (defn devtools-error [cause]
   (ExecutionException. "Protocol exception occurred" false :protocol {} cause))

@@ -10,3 +10,5 @@ before_script: lein ancient
 script:
   - cd test/todomvc && lein cljsbuild once min && cd ../..
   - lein t
+after_failure:
+  - cat target/*.log

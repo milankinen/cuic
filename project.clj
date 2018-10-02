@@ -18,6 +18,7 @@
                                   [eftest "0.5.3"]]
                    :plugins      [[lein-ancient "0.6.15"]]}}
   :deploy-repositories [["releases" :clojars]]
-  :aliases {"test" ["trampoline" "run" "-m" "test-runner/run-tests-cli"]
-            "t"    ["test"]}
+  :aliases {"test"    ["trampoline" "run" "-m" "test-runner/run-tests-cli"]
+            "t"       ["test"]
+            "release" ["do" ["clean"] ["deploy" "clojars"]]}
   :release-tasks [["deploy"]])

@@ -5,7 +5,8 @@
             [clojure.tools.logging :refer [debug]]
             [clojure.java.io :as io]
             [clojure.edn :as edn]
-            [cuic.core :refer [wait] :as core])
+            [cuic.core :refer [wait] :as core]
+            [cuic.impl.retry :as retry])
   (:import (java.io File)
            (java.awt.image BufferedImage)
            (javax.imageio ImageIO)
@@ -63,20 +64,19 @@
           (println " > Snapshot written : " (.getAbsolutePath e-file))
           true))))
 
+(defn -with-retry [f timeout expr-form]
+  (let [report (atom nil)
+        result (with-redefs [t/do-report #(reset! report %)]
+                 (retry/loop* f timeout expr-form))]
+    (some-> @report (t/do-report))
+    result))
+
 (defmacro is
   "Assertion macro that works like clojure.test/is but if the result value is
    non-truthy or asserted expression throws a cuic exception, then expression
    is re-tried until truthy value is received or timeout exceeds."
   [form]
-  `(let [rep#    (atom nil)
-         report# #(some-> @rep# (t/do-report))]
-     (try
-       (let [res# (with-redefs [t/do-report #(reset! rep# %)] (wait (t/is ~form)))]
-         (report#)
-         res#)
-       (catch Throwable t#
-         (report#)
-         nil))))
+  `(t/is (-with-retry #(do ~(t/assert-expr nil form)) (:timeout core/*config*) '~form)))
 
 (defn matches-snapshot?
   [snapshot-id actual]
@@ -113,9 +113,24 @@
           :actual   (list '~'not (cons '~'= [expected# actual#]))}))
      result#))
 
+(defn -assert-with-retry [msg form]
+  `(try
+     ~form
+     (catch Throwable t#
+       (t/do-report
+         {:type     :error
+          :message  ~msg
+          :expected ~(last form)
+          :actual   t#}))))
+
 (defmethod t/assert-expr 'matches-snapshot? [msg form]
   (-assert-snapshot msg form))
 
 (defmethod t/assert-expr `matches-snapshot? [msg form]
   (-assert-snapshot msg form))
 
+(defmethod t/assert-expr '-with-retry [msg form]
+  (-assert-with-retry msg form))
+
+(defmethod t/assert-expr `-with-retry [msg form]
+  (-assert-with-retry msg form))

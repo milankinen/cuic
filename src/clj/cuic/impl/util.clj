@@ -48,7 +48,7 @@
     (.decode d data)))
 
 (defn scaled-screenshot [browser]
-  (let [im  (-> (call #(.captureScreenshot (.getPage (tools browser)) nil nil nil false))
+  (let [im  (-> (call #(.captureScreenshot (.getPage (tools browser)) nil nil nil true))
                 (decode-base64)
                 (ByteArrayInputStream.)
                 (ImageIO/read))

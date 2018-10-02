@@ -9,8 +9,8 @@
 (defn retryable [^String msg & [data]]
   (ExecutionException. msg true nil (or data {}) nil))
 
-(defn timeout [expr reason]
-  (WaitTimeoutException. "Wait timeout exceeded" {:expression expr :reason reason} nil))
+(defn timeout [expr maybe-latest cause]
+  (WaitTimeoutException. (str "Wait timeout exceeded" maybe-latest) {:expression expr} cause))
 
 (defn js-error [description]
   (ExecutionException. "JavaScript error" false :js-error {:description description} nil))
@@ -48,3 +48,4 @@
      (catch ExecutionException e#
        (if-not (stale-node? e#) (throw e#))
        nil)))
+

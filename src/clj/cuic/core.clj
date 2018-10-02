@@ -23,7 +23,7 @@
    :mutation-wrapper #(default-mutation-wrapper %)
    :snapshot-dir     "test/__snapshots__"
    ; TODO figure out correct values for these?
-   :image-match      {:hash-bits 512 :threshold 4}})
+   :image-match      {:hash-bits 256 :threshold 16}})
 
 (defmacro -run-mutation
   "Runs the given code block inside mutation wrapper.

@@ -15,10 +15,9 @@
       (if value
         value
         (do (when (> (- (System/currentTimeMillis) start) timeout)
-              (let [latest (if (contains? res :value)
-                             (str ", latest value was: " (pr-str value))
-                             (str ", could not get the value to due exception: " (.getMessage error)))]
-                (throw (ex/timeout expr-form latest error))))
+              (let [descr (if (contains? res :value)
+                             (str ", latest value was: " (pr-str value)))]
+                (throw (ex/timeout expr-form descr value error))))
             (Thread/sleep 50)
             (recur start))))))
 

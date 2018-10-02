@@ -10,7 +10,8 @@
   (:import (java.io File)
            (java.awt.image BufferedImage)
            (javax.imageio ImageIO)
-           (com.github.kilianB.hashAlgorithms PerceptiveHash)))
+           (com.github.kilianB.hashAlgorithms PerceptiveHash)
+           (cuic WaitTimeoutException)))
 
 (defn- images-match? [^BufferedImage expected ^BufferedImage actual]
   (let [ph (PerceptiveHash. (:hash-bits (:image-match core/*config*)))
@@ -64,12 +65,17 @@
           (println " > Snapshot written : " (.getAbsolutePath e-file))
           true))))
 
-(defn -with-retry [f timeout expr-form]
-  (let [report (atom nil)
-        result (with-redefs [t/do-report #(reset! report %)]
-                 (retry/loop* f timeout expr-form))]
-    (some-> @report (t/do-report))
-    result))
+(defmacro -with-retry [f timeout expr-form]
+  `(let [report# (atom nil)
+         result# (with-redefs [t/do-report #(reset! report# %)]
+                   (try
+                     (retry/loop* ~f ~timeout ~expr-form)
+                     (catch WaitTimeoutException e#
+                       (if-some [cause# (.getCause e#)]
+                         (throw cause#)
+                         (:actual (ex-data e#))))))]
+     (some-> @report# (t/do-report))
+     result#))
 
 (defmacro is
   "Assertion macro that works like clojure.test/is but if the result value is

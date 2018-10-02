@@ -6,8 +6,8 @@
   (:import (java.io Writer)))
 
 (defn node-id->object-id [browser node-id]
-  (-> (call-node (-> (.getDOM (tools browser))
-                     (.resolveNode node-id nil nil)))
+  (-> (call-node #(-> (.getDOM (tools browser))
+                      (.resolveNode node-id nil nil)))
       (.getObjectId)))
 
 (defn node-id [{:keys [id browser]}]
@@ -19,8 +19,8 @@
   Object
   (toString [this]
     (try
-      (let [attrs (->> (call-node (-> (.getDOM (tools browser))
-                                      (.getAttributes (node-id this))))
+      (let [attrs (->> (call-node #(-> (.getDOM (tools browser))
+                                       (.getAttributes (node-id this))))
                        (partition 2 2)
                        (map (fn [[k v]] [(keyword k) v]))
                        (into {}))

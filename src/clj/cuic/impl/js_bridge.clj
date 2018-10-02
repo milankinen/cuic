@@ -14,20 +14,20 @@
     x))
 
 (defn- call-fn-on [{:keys [id browser]} body args]
-  (-> (call-node (-> (.getRuntime (tools browser))
-                     (.callFunctionOn (str "async function("
-                                           (string/join "," (map first args))
-                                           "){ " body " }")
-                                      id
-                                      (apply list (map (fn [[_ val]] (doto (CallArgument.) (.setValue val))) args))
-                                      nil                   ; silent
-                                      true                  ; return by value
-                                      nil                   ; generate preview
-                                      nil                   ; user gesture
-                                      true                  ; await promise
-                                      nil                   ; execution context id
-                                      nil                   ; object group
-                                      )))
+  (-> (call-node #(-> (.getRuntime (tools browser))
+                      (.callFunctionOn (str "async function("
+                                            (string/join "," (map first args))
+                                            "){ " body " }")
+                                       id
+                                       (apply list (map (fn [[_ val]] (doto (CallArgument.) (.setValue val))) args))
+                                       nil                  ; silent
+                                       true                 ; return by value
+                                       nil                  ; generate preview
+                                       nil                  ; user gesture
+                                       true                 ; await promise
+                                       nil                  ; execution context id
+                                       nil                  ; object group
+                                       )))
       (.getResult)))
 
 (defn- wrap-async-expr [expr]
@@ -46,19 +46,19 @@
 
 (defn eval [browser expr & [command-line-api?]]
   (debug "eval expr:" expr)
-  (-> (call (-> (.getRuntime (tools browser))
-                (.evaluate (wrap-async-expr expr)
-                           nil                              ; objectGroup
-                           (true? command-line-api?)        ; include command line api
-                           nil                              ; silent
-                           nil                              ; context id
-                           true                             ; return by value
-                           nil                              ; generate preview
-                           nil                              ; user gesture
-                           true                             ; await promise
-                           nil                              ; throw on side-effects
-                           nil                              ; timeout
-                           )))
+  (-> (call #(-> (.getRuntime (tools browser))
+                 (.evaluate (wrap-async-expr expr)
+                            nil                             ; objectGroup
+                            (true? command-line-api?)       ; include command line api
+                            nil                             ; silent
+                            nil                             ; context id
+                            true                            ; return by value
+                            nil                             ; generate preview
+                            nil                             ; user gesture
+                            true                            ; await promise
+                            nil                             ; throw on side-effects
+                            nil                             ; timeout
+                            )))
       (.getResult)
       (unwrap-async-result)
       (cljze)))

@@ -98,7 +98,7 @@
 (defn document
   "Returns the root document node or nil if document is not available"
   []
-  (as-> (call-node (-> (.getDOM (-t)) (.getDocument))) $
+  (as-> (call-node #(-> (.getDOM (-t)) (.getDocument))) $
         (node-id->object-id (-browser) (.getNodeId $))
         (->DOMNode $ (-browser))
         (with-meta $ {::document true})))
@@ -109,8 +109,8 @@
    is used as a root node for the query."
   ([root-node ^String selector]
    (or (-run-node-query [n root-node]
-         (->> (call (-> (.getDOM (-t))
-                        (.querySelectorAll (node-id n) selector)))
+         (->> (call-node #(-> (.getDOM (-t))
+                              (.querySelectorAll (node-id n) selector)))
               (map (partial node-id->object-id (:browser n)))
               (mapv #(->DOMNode % (:browser n)))))
        []))
@@ -149,7 +149,7 @@
   (node is a map of {:keys [tag attrs content]})"
   [node]
   (-run-node-query [n node]
-    (->> (call-node (.getOuterHTML (.getDOM (-t)) (node-id n) nil nil))
+    (->> (call-node #(.getOuterHTML (.getDOM (-t)) (node-id n) nil nil))
          (html/parse (true? (::document (meta n)))))))
 
 (defn text-content
@@ -164,7 +164,7 @@
   "Returns a map of attributes and their values for the given DOM node"
   [node]
   (or (-run-node-query [n node]
-        (->> (call-node (.getAttributes (.getDOM (-t)) (node-id n)))
+        (->> (call-node #(.getAttributes (.getDOM (-t)) (node-id n)))
              (partition 2 2)
              (map (fn [[k v]] [(keyword k) v]))
              (into {})))
@@ -245,7 +245,7 @@
   "Navigates the page to the given URL."
   [^String url]
   (-run-mutation
-    (call (.navigate (.getPage (-t)) url))))
+    (call #(.navigate (.getPage (-t)) url))))
 
 (defn scroll-to!
   "Scrolls window to the given DOM node if that node is not already visible
@@ -273,8 +273,8 @@
   [node]
   (-run-node-mutation [n node]
     (util/scroll-into-view! n)
-    (call-node (-> (.getDOM (tools (:browser n)))
-                   (.focus (node-id node) nil nil)))))
+    (call-node #(-> (.getDOM (tools (:browser n)))
+                    (.focus (node-id node) nil nil)))))
 
 (defn select-text!
   "Selects all text from the given input DOM element. If element is

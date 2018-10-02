@@ -48,11 +48,11 @@
     (.decode d data)))
 
 (defn scaled-screenshot [browser]
-  (let [im  (-> (call (.captureScreenshot (.getPage (tools browser)) nil nil nil false))
+  (let [im  (-> (call #(.captureScreenshot (.getPage (tools browser)) nil nil nil false))
                 (decode-base64)
                 (ByteArrayInputStream.)
                 (ImageIO/read))
-        vps (-> (call (.getLayoutMetrics (.getPage (tools browser))))
+        vps (-> (call #(.getLayoutMetrics (.getPage (tools browser))))
                 (.getLayoutViewport))
         rx  (.getClientWidth vps)
         ry  (.getClientHeight vps)

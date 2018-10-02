@@ -28,19 +28,19 @@
 (defn stale-node? [ex]
   (= :stale (ex-type ex)))
 
-(defmacro call-node [call-expr]
-  `(try
-     ~call-expr
-     (catch ChromeDevToolsInvocationException e#
-       (if (= -32000 (.getCode e#))
-         (throw (stale-node e#))
-         (throw (devtools-error e#))))))
+(defn call-node [op]
+  (try
+    (op)
+    (catch ChromeDevToolsInvocationException e
+      (if (= -32000 (.getCode e))
+        (throw (stale-node e))
+        (throw (devtools-error e))))))
 
-(defmacro call [call-expr]
-  `(try
-     ~call-expr
-     (catch ChromeDevToolsInvocationException e#
-       (throw (devtools-error e#)))))
+(defn call [op]
+  (try
+    (op)
+    (catch ChromeDevToolsInvocationException e
+      (throw (devtools-error e)))))
 
 (defmacro with-stale-ignored [expr]
   `(try

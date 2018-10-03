@@ -8,7 +8,7 @@
            (com.github.kklisura.cdt.protocol.types.input DispatchMouseEventType DispatchMouseEventButton DispatchKeyEventType)))
 
 (defonce ^:private layout
-  (json/read-str (slurp (io/resource "us_keyboard_layout.json"))))
+  (json/read-str (slurp (io/resource "cuic_us_keyboard_layout.json"))))
 
 (defonce ^:private active-modifiers
   (atom #{}))

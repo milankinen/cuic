@@ -11,6 +11,8 @@
                  [com.github.kilianB/JImageHash "1.0.2"]]
   :source-paths ["src/clj"]
   :java-source-paths ["src/java"]
+  :resource-paths ["resources"]
+  :jar-exclusions [#"js_deps/"]
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.9.0"]
                                   [http-kit "2.3.0"]
                                   [compojure "1.6.1"]

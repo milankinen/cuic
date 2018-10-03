@@ -1,7 +1,7 @@
 {
   "name": "cuic-runtime-deps",
   "scripts": {
-    "build": "webpack -p index.js -o deps.js"
+    "build": "webpack -p index.js -o ../cuic_runtime_deps.js"
   },
   "dependencies": {
     "smooth-scroll-into-view-if-needed": "1.1.19",

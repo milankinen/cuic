@@ -52,7 +52,7 @@
 
 (defn- inject-runtime-deps! [^ChromeDevToolsService tools]
   (debug "Enable internal runtime JavaScript dependencies")
-  (let [src (slurp (io/resource "js_deps/deps.js"))]
+  (let [src (slurp (io/resource "cuic_runtime_deps.js"))]
     (-> (.getPage tools)
         (.addScriptToEvaluateOnNewDocument src))))
 

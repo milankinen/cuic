@@ -3,6 +3,7 @@
   :url "https://github.com/milankinen/cuic"
   :license {:name "MIT"
             :url  "https://opensource.org/licenses/MIT"}
+  :signing {:gpg-key "9DD8C3E9"}
   :repositories [["JCenter" "https://jcenter.bintray.com/"]]
   :dependencies [[org.clojure/tools.logging "0.4.1"]
                  [org.clojure/data.json "0.2.6"]

@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+mkdir -p target
+echo '#!/bin/bash
+mkdir -p /root/.gnupg && chmod 600 /root/.gnupg
+for k in /gnupg/keyrings/*; do
+  cp $k /root/.gnupg/
+done
+export GPG_TTY=$(tty)
+ ./lein release
+' > target/entrypoint.sh
+
+docker run --rm -ti \
+  -v $(cd $(dirname $0) && pwd):/build \
+  -v $HOME/.gnupg:/gnupg:ro \
+  -w /build \
+  openjdk:8-jdk \
+  sh target/entrypoint.sh

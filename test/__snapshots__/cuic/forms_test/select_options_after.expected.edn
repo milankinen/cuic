@@ -1,0 +1,3 @@
+[{:value "f", :text "Foo", :selected false}
+ {:value "b", :text "Bar", :selected false}
+ {:value "t", :text "Tsers", :selected true}]

@@ -301,6 +301,23 @@
     (select-text!)
     (type! :backspace)))
 
+(defn select!
+  [select-node & values]
+  {:pre [(every? string? values)]}
+  (-run-node-mutation [n select-node]
+    (js/exec-in n "
+      if (this.nodeName.toLowerCase() !== 'select') throw new Error('Not a select node');
+      var opts = Array.prototype.slice.call(this.options);
+      for(var i = 0; i < opts.length; i++) {
+        var o = opts[i];
+        if ((o.selected = vals.includes(o.value)) && !this.multiple) {
+          break;
+        }
+      }
+      this.dispatchEvent(new Event('input', {bubbles: true}));
+      this.dispatchEvent(new Event('change', {bubbles: true}));
+    " ["vals" (vec values)])))
+
 (defn default-mutation-wrapper
   "Default wrapper that surrounds for each mutation function.
    Holds the execution until all document (re)loads, XHR requests

@@ -274,7 +274,7 @@
   (-run-node-mutation [n node]
     (util/scroll-into-view! n)
     (call-node #(-> (.getDOM (tools (:browser n)))
-                    (.focus (node-id node) nil nil)))))
+                    (.focus (node-id n) nil nil)))))
 
 (defn select-text!
   "Selects all text from the given input DOM element. If element is

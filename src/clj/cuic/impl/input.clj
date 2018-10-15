@@ -53,8 +53,8 @@
                nil                                          ; autorepeat?
                nil                                          ; is keypad?
                nil                                          ; is system key?
-               nil                                          ; location
-               ))))
+               nil))))                                          ; location
+
 
 (defn- dispatch-mouse-event! [browser {:keys [x y type modifiers click-count button delta-x delta-y]}]
   (call #(-> (.getInput (tools browser))

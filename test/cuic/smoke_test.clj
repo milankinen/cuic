@@ -1,7 +1,7 @@
 (ns cuic.smoke-test
   (:require [clojure.test :refer [deftest testing use-fixtures]]
             [todomvc-server :refer [start-server!]]
-            [cuic.test :refer [is matches-screenshot?]]
+            [cuic.test :refer [is]]
             [cuic.core :as c]))
 
 (def headless? true)
@@ -86,12 +86,3 @@
     (is (c/visible? (clear-completed-button)))
     (c/with-retry (c/click! (clear-completed-button)))
     (is (= ["lol" "foo"] (map todo-text (todo-items))))))
-
-(deftest todolist-styles
-  (testing "styles are stable"
-    (c/with-retry
-      (add-todo! "lol")
-      (add-todo! "bal"))
-    (is (as-> (c/q "#todo-list") $
-              (c/screenshot $ {:masked-nodes (c/q $ ".toggle")})
-              (matches-screenshot? ::todo-styles $)))))

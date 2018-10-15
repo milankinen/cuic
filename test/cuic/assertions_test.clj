@@ -84,22 +84,11 @@
     (is (snapshot-exists? #"test_1.expected.edn$"))
     (is (not (snapshot-exists? #"test_1.actual.edn$"))))
   (testing "same structurally equivalent value passes the test"
-    (is (ct/matches-snapshot? ::test-1 {:lol "bal" :foo "bar" }))
+    (is (ct/matches-snapshot? ::test-1 {:lol "bal" :foo "bar"}))
     (is (not (snapshot-exists? #"test_1.actual.edn$"))))
   (testing "different value fails the test"
-    (is (not (ct/matches-snapshot? ::test-1 {:lol "bal" :foo "tsers" })))
+    (is (not (ct/matches-snapshot? ::test-1 {:lol "bal" :foo "tsers"})))
     (is (snapshot-exists? #"test_1.actual.edn$")))
   (testing "actual file is deleted if test passes again"
-    (is (ct/matches-snapshot? ::test-1 {:lol "bal" :foo "bar" }))
+    (is (ct/matches-snapshot? ::test-1 {:lol "bal" :foo "bar"}))
     (is (not (snapshot-exists? #"test_1.actual.edn$")))))
-
-(deftest screenshot-matching
-  (if (.exists (io/file snapshot-dir))
-    (FileUtils/forceDelete (io/file snapshot-dir)))
-  (testing "same image passes test"
-    (is (ct/matches-screenshot? ::test-2 (read-image "test-image-a.png")))
-    (is (snapshot-exists? #"test_2.expected.png$"))
-    (is (ct/matches-screenshot? ::test-2 (read-image "test-image-a.png"))))
-  (testing "different image fails test"
-    (is (not (ct/matches-screenshot? ::test-2 (read-image "test-image-b.png"))))
-    (is (snapshot-exists? #"test_2.actual.png$"))))

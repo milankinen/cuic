@@ -160,6 +160,14 @@
       (text-content (first (q n "body")))
       (js/eval-in n "this.textContent"))))
 
+(defn inner-text
+  "Returns the inner text of the given DOM node"
+  [node]
+  (-run-node-query [n node]
+    (if (true? (::document (meta n)))
+      (inner-text (first (q n "body")))
+      (js/eval-in n "this.innerText"))))
+
 (defn attrs
   "Returns a map of attributes and their values for the given DOM node"
   [node]

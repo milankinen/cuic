@@ -42,9 +42,12 @@
 (defmethod print-method DOMNode [node ^Writer w]
   (.write w (.toString node)))
 
+(defn node? [x]
+  (instance? DOMNode x))
+
 (defn maybe [x]
   (cond
-    (instance? DOMNode x) x
+    (node? x) x
     (sequential? x)
     (if (<= (count x) 1)
       (maybe (first x))
@@ -54,7 +57,7 @@
 
 (defn existing [x]
   (cond
-    (instance? DOMNode x) x
+    (node? x) x
     (sequential? x)
     (case (count x)
       1 (existing (first x))
@@ -64,7 +67,7 @@
 
 (defn visible [x]
   (cond
-    (instance? DOMNode x) (if (js/eval-in x "!!this.offsetParent") x (throw (ex/retryable "Node is not visible" {:node x})))
+    (node? x) (if (js/eval-in x "!!this.offsetParent") x (throw (ex/retryable "Node is not visible" {:node x})))
     (sequential? x)
     (case (count x)
       1 (visible (first x))

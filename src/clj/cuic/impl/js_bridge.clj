@@ -26,8 +26,8 @@
                                        nil                  ; user gesture
                                        true                 ; await promise
                                        nil                  ; execution context id
-                                       nil                  ; object group
-                                       )))
+                                       nil)))                  ; object group
+
       (.getResult)))
 
 (defn- wrap-async-expr [expr]
@@ -57,8 +57,8 @@
                             nil                             ; user gesture
                             true                            ; await promise
                             nil                             ; throw on side-effects
-                            nil                             ; timeout
-                            )))
+                            nil)))                             ; timeout
+
       (.getResult)
       (unwrap-async-result)
       (cljze)))

@@ -1,6 +1,8 @@
 (ns cuic.dev
   (:require [clojure.pprint :refer [pprint]]
-            [cuic.core :as c])
+            [cuic.core :as c]
+            [cuic.impl.dom-node :refer [node?]]
+            [cuic.impl.js-bridge :as js])
   (:import (java.awt.image BufferedImage)
            (javax.swing ImageIcon JFrame JLabel)
            (java.awt FlowLayout Dimension EventQueue)))
@@ -49,3 +51,8 @@
         to-front #(do (.toFront frame)
                       (.repaint frame))]
     (EventQueue/invokeLater to-front)))
+
+(defn inspect [nodes]
+  {:pre [(every? node? nodes)]}
+  (doseq [n nodes]
+    (js/exec-in n "console.log(this)")))

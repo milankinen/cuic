@@ -188,6 +188,16 @@
         (remove string/blank? $)
         (set $)))
 
+(defn term-freqs
+  "Returns a number of occurrences per term in the given nodes inner text"
+  [node]
+  (->> (string/split (inner-text node) #"[\n\s\t]+")
+       (map string/trim)
+       (remove string/blank?)
+       (group-by identity)
+       (map (fn [[t v]] [t (count v)]))
+       (into {})))
+
 (defn visible?
   "Returns boolean whether the given DOM node is visible in DOM or not"
   [node]

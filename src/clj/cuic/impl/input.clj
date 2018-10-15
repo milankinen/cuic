@@ -33,11 +33,13 @@
        (map (fn [[k m]] [k {:key                      (get m "key")
                             :native-virtual-key-code  (get m "keyCode")
                             :windows-virtual-key-code (get m "keyCode")
-                            :code                     (get m "code")}]))
+                            :code                     (get m "code")
+                            :text                     (get m "text")
+                            :unmodified-text          (get m "text")}]))
        (into {})))
 
 (defn- dispatch-kb-event! [browser {:keys [type modifiers key code key-identifier native-virtual-key-code
-                                           windows-virtual-key-code text unmodified-text] :as ev}]
+                                           windows-virtual-key-code text unmodified-text]}]
   (call #(-> (.getInput (tools browser))
              (.dispatchKeyEvent
                type
@@ -53,7 +55,7 @@
                nil                                          ; autorepeat?
                nil                                          ; is keypad?
                nil                                          ; is system key?
-               nil))))                                          ; location
+               nil))))                                      ; location
 
 
 (defn- dispatch-mouse-event! [browser {:keys [x y type modifiers click-count button delta-x delta-y]}]
@@ -108,7 +110,10 @@
         (dispatch-kb-event! browser $)))
 
 (defn- -key-down! [browser sym]
-  (dispatch-event! browser DispatchKeyEventType/RAW_KEY_DOWN sym)
+  (let [ev-type (if (:text (sym->event sym))
+                  DispatchKeyEventType/KEY_DOWN
+                  DispatchKeyEventType/RAW_KEY_DOWN)]
+    (dispatch-event! browser ev-type sym))
   (if (contains? modifier-bits sym)
     (swap! active-modifiers conj [browser sym])))
 

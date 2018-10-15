@@ -136,12 +136,12 @@
   (-run-node-query [n input-node]
     (js/eval-in n "this.value")))
 
-(defn selected-options
-  "Returns a list of selected options {:keys [value text]} for the given HTML
+(defn options
+  "Returns a list of options {:keys [value text selected]} for the given HTML
    select element."
   [select-node]
   (or (-run-node-query [n select-node]
-        (js/eval-in n "Array.prototype.slice.call(this.selectedOptions).map(function(o){return{value:o.value,text:o.text};})"))
+        (js/eval-in n "Array.prototype.slice.call(this.options).map(function(o){return{value:o.value,text:o.text,selected:o.selected};})"))
       []))
 
 (defn outer-html

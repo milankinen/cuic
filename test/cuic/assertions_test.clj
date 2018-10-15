@@ -23,7 +23,7 @@
 (defmacro run-is-test [expr]
   `(let [reports# (atom [])]
      (with-redefs [do-report #(swap! reports# conj %)]
-       (ct/is ~expr))
+       (ct/is* ~expr))
      @reports#))
 
 (defn snapshot-exists? [pattern]

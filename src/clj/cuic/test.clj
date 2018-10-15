@@ -71,7 +71,7 @@
      (some-> @report# (t/do-report))
      result#))
 
-(defmacro is
+(defmacro is*
   "Assertion macro that works like clojure.test/is but if the result value is
    non-truthy or asserted expression throws a cuic exception, then expression
    is re-tried until truthy value is received or timeout exceeds."

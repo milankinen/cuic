@@ -2,6 +2,7 @@
   (:require [clojure.test :as t]
             [clojure.pprint :refer [pprint]]
             [clojure.string :as string]
+            [clojure.walk :refer [postwalk]]
             [clojure.tools.logging :refer [debug]]
             [clojure.java.io :as io]
             [clojure.edn :as edn]
@@ -9,6 +10,9 @@
             [cuic.impl.retry :as retry])
   (:import (java.io File)
            (cuic WaitTimeoutException AbortTestError)))
+
+(defn- sorted-map-keys [x]
+  (postwalk #(if (map? %) (into (sorted-map) %) %) x))
 
 (defn- snapshots-root-dir ^File []
   (io/file (:snapshot-dir core/*config*)))
@@ -90,7 +94,7 @@
   {:pre [(keyword? snapshot-id)]}
   (let [predicate #(= %1 %2)
         read      read-edn
-        write!    #(spit (io/file %1) (with-out-str (pprint %2)))]
+        write!    #(spit (io/file %1) (with-out-str (pprint (sorted-map-keys %2))))]
     (test-snapshot snapshot-id actual predicate read write! "edn")))
 
 (defn -assert-snapshot [msg [match? id actual]]

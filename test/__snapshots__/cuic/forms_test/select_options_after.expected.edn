@@ -1,3 +1,3 @@
-[{:value "f", :text "Foo", :selected false}
- {:value "b", :text "Bar", :selected false}
- {:value "t", :text "Tsers", :selected true}]
+[{:selected false, :text "Foo", :value "f"}
+ {:selected false, :text "Bar", :value "b"}
+ {:selected true, :text "Tsers", :value "t"}]

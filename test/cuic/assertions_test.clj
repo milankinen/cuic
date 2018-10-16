@@ -4,9 +4,10 @@
             [cuic.test :as ct]
             [cuic.assertions-test]
             [cuic.impl.exception :as ex]
-            [clojure.java.io :as io])
+            [clojure.java.io :as io]
+            [cuic.dev])
   (:import (org.apache.commons.io FileUtils)
-           (javax.imageio ImageIO)))
+           (cuic AbortTestError)))
 
 (defn throw-once [ex]
   (let [thrown (atom false)]
@@ -32,10 +33,7 @@
        (empty?)
        (not)))
 
-(defn read-image [res]
-  (ImageIO/read (io/input-stream (io/resource res))))
-
-(deftest is-macro
+(deftest is*-macro
   (testing "waits until asserted expression is truthy or fails after certain wait period"
     (is (= [{:actual   true
              :expected true
@@ -74,7 +72,11 @@
              :message  nil
              :type     :error}]
            (-> (run-is-test (throw (ex/stale-node (Exception. "tsers"))))
-               (update-in [0 :actual] #(.getMessage %)))))))
+               (update-in [0 :actual] #(.getMessage %))))))
+  (testing "is* assertion can throw AbortTestException if predicate fails and :abort-on-failed-assertion flag is enabled"
+    (letfn [(test [] (run-is-test (= 1 2)))]
+      (binding [c/*config* (assoc c/*config* :timeout 100 :abort-on-failed-assertion true)]
+        (is (thrown? AbortTestError (test)))))))
 
 (deftest snapshot-matching
   (if (.exists (io/file snapshot-dir))

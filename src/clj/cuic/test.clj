@@ -5,10 +5,10 @@
             [clojure.tools.logging :refer [debug]]
             [clojure.java.io :as io]
             [clojure.edn :as edn]
-            [cuic.core :refer [wait] :as core]
+            [cuic.core :refer [wait *config*] :as core]
             [cuic.impl.retry :as retry])
   (:import (java.io File)
-           (cuic WaitTimeoutException)))
+           (cuic WaitTimeoutException AbortTestError)))
 
 (defn- snapshots-root-dir ^File []
   (io/file (:snapshot-dir core/*config*)))
@@ -69,6 +69,8 @@
                          (throw cause#)
                          (:actual (ex-data e#))))))]
      (some-> @report# (t/do-report))
+     (if (and @report# (true? (:abort-on-failed-assertion *config*)))
+       (throw (AbortTestError.)))
      result#))
 
 (defmacro is*
@@ -76,7 +78,12 @@
    non-truthy or asserted expression throws a cuic exception, then expression
    is re-tried until truthy value is received or timeout exceeds."
   [form]
-  `(t/is (-with-retry #(do ~(t/assert-expr nil form)) (:timeout core/*config*) '~form)))
+  `(let [do-report# t/do-report]
+     (with-redefs [t/do-report #(if (instance? AbortTestError (:actual %))
+                                  (throw (:actual %))
+                                  (do-report# %))]
+       (t/is (-with-retry #(do ~(t/assert-expr nil form)) (:timeout *config*) '~form)))))
+
 
 (defn matches-snapshot?
   [snapshot-id actual]

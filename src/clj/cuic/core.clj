@@ -18,10 +18,11 @@
 
 (defonce ^:dynamic *browser* nil)
 (defonce ^:dynamic *config*
-  {:typing-speed     :normal
-   :timeout          10000
-   :mutation-wrapper #(default-mutation-wrapper %)
-   :snapshot-dir     "test/__snapshots__"})
+  {:typing-speed              :normal
+   :timeout                   10000
+   :mutation-wrapper          #(default-mutation-wrapper %)
+   :snapshot-dir              "test/__snapshots__"
+   :abort-on-failed-assertion false})
 
 (defmacro -run-mutation
   "Runs the given code block inside mutation wrapper.

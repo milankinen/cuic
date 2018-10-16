@@ -21,9 +21,7 @@
   {:typing-speed     :normal
    :timeout          10000
    :mutation-wrapper #(default-mutation-wrapper %)
-   :snapshot-dir     "test/__snapshots__"
-   ; TODO figure out correct values for these?
-   :image-match      {:hash-bits 256 :threshold 16}})
+   :snapshot-dir     "test/__snapshots__"})
 
 (defmacro -run-mutation
   "Runs the given code block inside mutation wrapper.

@@ -18,11 +18,13 @@
 
 (defonce ^:dynamic *browser* nil)
 (defonce ^:dynamic *config*
-  {:typing-speed              :normal
-   :timeout                   10000
-   :mutation-wrapper          #(default-mutation-wrapper %)
-   :snapshot-dir              "test/__snapshots__"
-   :abort-on-failed-assertion false})
+  {:typing-speed               :normal
+   :timeout                    10000
+   :take-screenshot-on-timeout true
+   :screenshot-dir             "target/__screenshots__"
+   :mutation-wrapper           #(default-mutation-wrapper %)
+   :snapshot-dir               "test/__snapshots__"
+   :abort-on-failed-assertion  false})
 
 (defmacro -run-mutation
   "Runs the given code block inside mutation wrapper.
@@ -79,14 +81,14 @@
    expression. Continues this until thruthy value or timeout exception
    occurs."
   [expr]
-  `(retry/loop* #(do ~expr) (:timeout *config*) '~expr))
+  `(retry/loop* #(do ~expr) *browser* *config* '~expr))
 
 (defmacro with-retry
   "Evaluates each (mutation) statement in retry-loop so that if the
    mutation throws any cuic related error, the errored statement is
    retried until the expression passes or timeout exception occurs."
   [& statements]
-  `(do ~@(map (fn [s] `(retry/loop* #(do ~s true) (:timeout *config*) '~s)) statements)
+  `(do ~@(map (fn [s] `(retry/loop* #(do ~s true) *browser* *config* '~s)) statements)
        nil))
 
 (defn running-activities

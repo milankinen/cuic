@@ -6,7 +6,7 @@
             [clojure.tools.logging :refer [debug]]
             [clojure.java.io :as io]
             [clojure.edn :as edn]
-            [cuic.core :refer [wait *config*] :as core]
+            [cuic.core :refer [wait *browser* *config*]]
             [cuic.impl.retry :as retry])
   (:import (java.io File)
            (cuic WaitTimeoutException AbortTestError)))
@@ -15,7 +15,7 @@
   (postwalk #(if (map? %) (into (sorted-map) %) %) x))
 
 (defn- snapshots-root-dir ^File []
-  (io/file (:snapshot-dir core/*config*)))
+  (io/file (:snapshot-dir *config*)))
 
 (defn- sanitize-filename [filename]
   (-> filename
@@ -63,11 +63,11 @@
           (println " > Snapshot written : " (.getAbsolutePath e-file))
           true))))
 
-(defmacro -with-retry [f timeout expr-form]
+(defmacro -with-retry [f expr-form]
   `(let [report# (atom nil)
          result# (with-redefs [t/do-report #(reset! report# %)]
                    (try
-                     (retry/loop* ~f ~timeout ~expr-form)
+                     (retry/loop* ~f *browser* *config* ~expr-form)
                      (catch WaitTimeoutException e#
                        (if-some [cause# (.getCause e#)]
                          (throw cause#)
@@ -86,7 +86,7 @@
      (with-redefs [t/do-report #(if (instance? AbortTestError (:actual %))
                                   (throw (:actual %))
                                   (do-report# %))]
-       (t/is (-with-retry #(do ~(t/assert-expr nil form)) (:timeout *config*) '~form)))))
+       (t/is (-with-retry #(do ~(t/assert-expr nil form)) '~form)))))
 
 
 (defn matches-snapshot?

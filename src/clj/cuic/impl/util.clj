@@ -43,7 +43,7 @@
     {:x (+ left (/ width 2))
      :y (+ top (/ height 2))}))
 
-(defn decode-base64 [data]
+(defn decode-base64 [^String data]
   (let [d (Base64/getDecoder)]
     (.decode d data)))
 

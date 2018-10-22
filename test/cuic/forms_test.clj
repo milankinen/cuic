@@ -2,12 +2,14 @@
   (:require [clojure.test :refer :all]
             [cuic.core :as c]
             [cuic.test :refer [is* matches-snapshot?]]
-            [clojure.java.io :as io]))
+            [clojure.java.io :as io])
+  (:import (cuic AbortTestError)))
 
 
 (defn form-test-fixture [t]
   (with-open [b (c/launch! {:window-size {:width 1000 :height 1000}})]
-    (binding [c/*browser* b]
+    (binding [c/*browser* b
+              c/*config*  (assoc c/*config* :timeout 500 :abort-on-failed-assertion true)]
       (c/goto! (str "file://" (.getAbsolutePath (io/file "test/forms/index.html"))))
       (t))))
 
@@ -48,6 +50,11 @@
       (c/click! (first (c/q "input[type='radio']")))
       (is* (= "a" (selection)))
       (c/click! (second (c/q "input[type='radio']")))
-      (is* (= "b" (selection))))))
+      (is* (= "b" (selection)))))
+  ; TODO how the heck to test this??
+  #_(testing "aborting on failed assertion works"
+      (is* (= "tsers?" (c/text-content (c/q "#fail"))))
+      (is* (= "tsers!" (c/text-content (c/q "#fail"))))
+      (is* (= "tsers?" (c/text-content (c/q "#fail"))))))
 
 

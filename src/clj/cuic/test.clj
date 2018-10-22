@@ -73,7 +73,8 @@
                          (throw cause#)
                          (:actual (ex-data e#))))))]
      (some-> @report# (t/do-report))
-     (if (and @report# (true? (:abort-on-failed-assertion *config*)))
+     (if (and (contains? #{:fail :error} (:type @report#))
+              (true? (:abort-on-failed-assertion *config*)))
        (throw (AbortTestError.)))
      result#))
 

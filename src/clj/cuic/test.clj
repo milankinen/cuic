@@ -112,7 +112,7 @@
        (t/do-report
          {:type     :fail
           :message  ~msg
-          :expected '(~'matches-snapshot? ~id ~actual)
+          :expected (cons '~'= [expected# actual#])
           :actual   (list '~'not (cons '~'= [expected# actual#]))}))
      result#))
 

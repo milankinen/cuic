@@ -6,7 +6,7 @@
   :signing {:gpg-key "9DD8C3E9"}
   :dependencies [[org.clojure/tools.logging "0.4.1"]
                  [org.clojure/data.json "0.2.6"]
-                 [com.github.kklisura.cdt/cdt-java-client "1.3.1"]
+                 [com.github.kklisura.cdt/cdt-java-client "1.3.2"]
                  [org.jsoup/jsoup "1.11.3"]]
   :source-paths ["src/clj"]
   :java-source-paths ["src/java"]

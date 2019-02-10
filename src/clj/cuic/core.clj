@@ -77,19 +77,6 @@
 
 ;; Queries
 
-(defn rect
-  "Returns a bounding client rect for the given node"
-  [node]
-  (run-query [n node]
-    (util/bounding-box n)))
-
-(defn visible?
-  "Returns boolean whether the given DOM node is visible in DOM or not"
-  [node]
-  (or (run-query [n node]
-        (js/eval-in n "!!this.offsetParent"))
-      false))
-
 (defn document
   "Returns the root document node or nil if document is not available"
   []
@@ -125,6 +112,19 @@
    Clojure data structure. Supports async expressions (await keyword)."
   (let-existing [n node-ctx]
                 (js/eval-in n js-code)))
+
+(defn visible?
+  "Returns boolean whether the given DOM node is visible in DOM or not"
+  [node]
+  (or (run-query [n node]
+        (js/eval-in n "!!this.offsetParent"))
+      false))
+
+(defn rect
+  "Returns a bounding client rect for the given node"
+  [node]
+  (run-query [n node]
+    (util/bounding-box n)))
 
 (defn value
   "Returns the current value of the given input element."
@@ -217,7 +217,15 @@
   "Returns boolean whether the given radio button / checkbox is checked or not"
   [node]
   (or (run-query [n node]
-        (js/eval-in n "!!this.checked"))))
+        (js/eval-in n "!!this.checked"))
+      false))
+
+(defn disabled?
+  "Returns boolean whether the given input / select / button is disabled or not"
+  [node]
+  (or (run-query [n node]
+        (js/eval-in n "!!this.disabled"))
+      false))
 
 (defn page-screenshot
   "Takes a screen capture from the currently visible page and returns a

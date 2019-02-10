@@ -6,20 +6,30 @@
   (if (instance? ExecutionException ex)
     (.getType ex)))
 
-(defn retryable [^String msg & [data]]
-  (ExecutionException. msg true nil (or data {}) nil))
+(defn retryable [^String msg]
+  (ExecutionException. msg true nil nil))
 
-(defn timeout [expr description actual cause]
-  (WaitTimeoutException. (str "Wait timeout exceeded" description) {:expression expr :actual actual} cause))
+(defn timeout [actual cause]
+  (WaitTimeoutException. actual cause))
 
 (defn js-error [description]
-  (ExecutionException. "JavaScript error" false :js-error {:description description} nil))
+  (ExecutionException. (str "JavaScript evaluation error: " description) false :js-error nil))
 
 (defn stale-node [cause]
-  (ExecutionException. "Node not found from DOM" true :stale {} cause))
+  (ExecutionException. "Node not found from DOM" true :stale cause))
 
 (defn devtools-error [cause]
-  (ExecutionException. "Protocol exception occurred" false :protocol {} cause))
+  (ExecutionException. "Protocol exception occurred" false :protocol cause))
+
+(defn mutation-failure [cause mutation-description]
+  (let [cause (loop [c cause]
+                (if (or (= :mutation (ex-type c))
+                        (instance? WaitTimeoutException c))
+                  (recur (.getCause c))
+                  c))]
+    (ExecutionException. (str "Could not execute mutation " mutation-description
+                              (if cause (str ", cause: " cause)))
+                         false :mutation-failure cause)))
 
 (defn retryable? [ex]
   (and (instance? ExecutionException ex)
@@ -41,11 +51,3 @@
     (op)
     (catch ChromeDevToolsInvocationException e
       (throw (devtools-error e)))))
-
-(defmacro with-stale-ignored [expr]
-  `(try
-     ~expr
-     (catch ExecutionException e#
-       (if-not (stale-node? e#) (throw e#))
-       nil)))
-

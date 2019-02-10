@@ -2,19 +2,19 @@
   (:refer-clojure :exclude [eval])
   (:require [clojure.string :as string]
             [clojure.set :refer [difference]]
-            [cuic.impl.browser :as browser :refer [tools]]
-            [cuic.impl.dom-node :refer [->DOMNode maybe existing visible node-id node-id->object-id]]
-            [cuic.impl.exception :refer [call call-node with-stale-ignored]]
+            [cuic.impl.macro :refer [let-some let-existing let-visible ignore-stale]]
+            [cuic.impl.browser :as browser]
+            [cuic.impl.dom-node :refer [->DOMNode maybe existing node-id node-id->object-id]]
+            [cuic.impl.exception :refer [call call-node] :as ex]
             [cuic.impl.retry :as retry]
             [cuic.impl.html :as html]
             [cuic.impl.js-bridge :as js]
             [cuic.impl.input :as input]
             [cuic.impl.util :as util])
-  (:import (java.io Closeable)
-           (com.github.kklisura.cdt.services ChromeDevToolsService)
-           (java.awt.image BufferedImage)))
+  (:import (com.github.kklisura.cdt.services ChromeDevToolsService)
+           (java.io Closeable File)))
 
-(declare default-mutation-wrapper)
+;; Options
 
 (defonce ^:dynamic *browser* nil)
 (defonce ^:dynamic *config*
@@ -22,41 +22,33 @@
    :timeout                    10000
    :take-screenshot-on-timeout true
    :screenshot-dir             "target/__screenshots__"
-   :mutation-wrapper           #(default-mutation-wrapper %)
    :snapshot-dir               "test/__snapshots__"
    :abort-on-failed-assertion  false})
 
-(defmacro -run-mutation
-  "Runs the given code block inside mutation wrapper.
-   ** Used internally, do not touch! **"
-  {:style/indent 0}
-  [& body]
-  `(do (apply (:mutation-wrapper *config*) [#(do ~@body)])
-       nil))
+;; General
 
-(defmacro -run-node-mutation
-  "Shortcut for mutation of the given visible node.
-  ** Used internally, do not touch! **"
+(defmacro run-query
   {:style/indent 0}
-  [[node-binding node-expr] & body]
-  `(let [~node-binding (visible ~node-expr)]
-     (-run-mutation ~@body)))
+  [[binding expr] & body]
+  `(let-some [~binding ~expr]
+     (ignore-stale ~@body)))
 
-(defmacro -run-node-query
-  "Shortcut for data query of the given visible node.
-  ** Used internally, do not touch! **"
+(defmacro run-mutation
   {:style/indent 0}
-  [[node-binding node-expr] expr]
-  `(with-stale-ignored
-     (if-let [~node-binding (maybe ~node-expr)]
-       ~expr)))
+  [mutation & [description]]
+  `(try
+     (retry/loop* #(do ~mutation true) *browser* *config*)
+     nil
+     (catch Exception ex#
+       (throw (ex/mutation-failure ex# '~(or description mutation))))))
 
-(defn -browser
-  "Returns the current browser instance.
-   ** Used internally, do not touch! **"
+(defn current-browser
+  "Returns the current browser instance."
   ([] (or *browser* (throw (IllegalStateException. "No browser set! Did you forget to call `use-browser`?")))))
 
-(defn- -t [] ^ChromeDevToolsService (tools (-browser)))
+(defn dev-tools
+  "Escape hatch for underlying Chrome dev tools service"
+  [] ^ChromeDevToolsService (browser/tools (current-browser)))
 
 (defn sleep
   "Holds the execution the given milliseconds"
@@ -81,27 +73,29 @@
    expression. Continues this until thruthy value or timeout exception
    occurs."
   [expr]
-  `(retry/loop* #(do ~expr) *browser* *config* '~expr))
+  `(retry/loop* #(do ~expr) *browser* *config*))
 
-(defmacro with-retry
-  "Evaluates each (mutation) statement in retry-loop so that if the
-   mutation throws any cuic related error, the errored statement is
-   retried until the expression passes or timeout exception occurs."
-  [& statements]
-  `(do ~@(map (fn [s] `(retry/loop* #(do ~s true) *browser* *config* '~s)) statements)
-       nil))
+;; Queries
 
-(defn running-activities
-  "Returns a vector of the currently running activities."
-  ([] (browser/activities (-browser))))
+(defn rect
+  "Returns a bounding client rect for the given node"
+  [node]
+  (run-query [n node]
+    (util/bounding-box n)))
 
+(defn visible?
+  "Returns boolean whether the given DOM node is visible in DOM or not"
+  [node]
+  (or (run-query [n node]
+        (js/eval-in n "!!this.offsetParent"))
+      false))
 
 (defn document
   "Returns the root document node or nil if document is not available"
   []
-  (as-> (call-node #(-> (.getDOM (-t)) (.getDocument))) $
-        (node-id->object-id (-browser) (.getNodeId $))
-        (->DOMNode $ (-browser))
+  (as-> (call-node #(-> (.getDOM (dev-tools)) (.getDocument))) $
+        (node-id->object-id (current-browser) (.getNodeId $))
+        (->DOMNode $ (current-browser))
         (with-meta $ {::document true})))
 
 (defn q
@@ -109,8 +103,8 @@
    vector of matched nodes. If called without the root node, page document node
    is used as a root node for the query."
   ([root-node ^String selector]
-   (or (-run-node-query [n root-node]
-         (->> (call-node #(-> (.getDOM (-t))
+   (or (run-query [n root-node]
+         (->> (call-node #(-> (.getDOM (dev-tools))
                               (.querySelectorAll (node-id n) selector)))
               (map (partial node-id->object-id (:browser n)))
               (mapv #(->DOMNode % (:browser n)))))
@@ -123,25 +117,26 @@
    expression is converted into Clojure data structure. Supports async
    expressions (await keyword)."
   [^String js-code]
-  (js/eval (-browser) js-code))
+  (js/eval (current-browser) js-code))
 
 (defn eval-in [node-ctx ^String js-code]
   "Evaluates JavaScript expression in the given node context so that JS 'this'
    points to the given node. Return value of the expression is converted into
    Clojure data structure. Supports async expressions (await keyword)."
-  (js/eval-in (existing node-ctx) js-code))
+  (let-existing [n node-ctx]
+                (js/eval-in n js-code)))
 
 (defn value
   "Returns the current value of the given input element."
   [input-node]
-  (-run-node-query [n input-node]
+  (run-query [n input-node]
     (js/eval-in n "this.value")))
 
 (defn options
   "Returns a list of options {:keys [value text selected]} for the given HTML
    select element."
   [select-node]
-  (or (-run-node-query [n select-node]
+  (or (run-query [n select-node]
         (js/eval-in n "Array.prototype.slice.call(this.options).map(function(o){return{value:o.value,text:o.text,selected:o.selected};})"))
       []))
 
@@ -149,14 +144,14 @@
   "Returns the outer html of the given node in clojure.data.xml format
   (node is a map of {:keys [tag attrs content]})"
   [node]
-  (-run-node-query [n node]
-    (->> (call-node #(.getOuterHTML (.getDOM (-t)) (node-id n) nil nil))
+  (run-query [n node]
+    (->> (call-node #(.getOuterHTML (.getDOM (dev-tools)) (node-id n) nil nil))
          (html/parse (true? (::document (meta n)))))))
 
 (defn text-content
   "Returns the raw text content of the given DOM node."
   [node]
-  (-run-node-query [n node]
+  (run-query [n node]
     (if (true? (::document (meta n)))
       (text-content (first (q n "body")))
       (js/eval-in n "this.textContent"))))
@@ -164,7 +159,7 @@
 (defn inner-text
   "Returns the inner text of the given DOM node"
   [node]
-  (-run-node-query [n node]
+  (run-query [n node]
     (if (true? (::document (meta n)))
       (inner-text (first (q n "body")))
       (js/eval-in n "this.innerText"))))
@@ -172,8 +167,8 @@
 (defn attrs
   "Returns a map of attributes and their values for the given DOM node"
   [node]
-  (or (-run-node-query [n node]
-        (->> (call-node #(.getAttributes (.getDOM (-t)) (node-id n)))
+  (or (run-query [n node]
+        (->> (call-node #(.getAttributes (.getDOM (dev-tools)) (node-id n)))
              (partition 2 2)
              (map (fn [[k v]] [(keyword k) v]))
              (into {})))
@@ -192,19 +187,12 @@
 (defn term-freqs
   "Returns a number of occurrences per term in the given nodes inner text"
   [node]
-  (->> (string/split (inner-text node) #"[\n\s\t]+")
+  (->> (string/split (or (inner-text node) "") #"[\n\s\t]+")
        (map string/trim)
        (remove string/blank?)
        (group-by identity)
        (map (fn [[t v]] [t (count v)]))
        (into {})))
-
-(defn visible?
-  "Returns boolean whether the given DOM node is visible in DOM or not"
-  [node]
-  (or (-run-node-query [n node]
-        (js/eval-in n "!!this.offsetParent"))
-      false))
 
 (defn has-class?
   "Returns boolean whether the given DOM node has the given class or not"
@@ -214,138 +202,156 @@
 (defn matches?
   "Returns boolean whether the given node matches the given CSS selector or not."
   [node ^String selector]
-  (or (-run-node-query [n node]
+  (or (run-query [n node]
         (js/exec-in n "try {return this.matches(sel);}catch(e){return false;}" ["sel" selector]))
       false))
 
 (defn active?
   "Returns boolean whether the given node is active (focused) or not"
   [node]
-  (or (-run-node-query [n node]
+  (or (run-query [n node]
         (js/eval-in n "document.activeElement === this"))
       false))
 
 (defn checked?
   "Returns boolean whether the given radio button / checkbox is checked or not"
   [node]
-  (or (-run-node-query [n node]
+  (or (run-query [n node]
         (js/eval-in n "!!this.checked"))))
 
 (defn page-screenshot
   "Takes a screen capture from the currently visible page and returns a
    BufferedImage instance containing the screenshot."
-  ([{:keys [masked-nodes]}]
-   (-> (util/scaled-screenshot (-browser))
-       (util/mask-nodes masked-nodes)))
-  ([] (page-screenshot {})))
+  []
+  (util/scaled-screenshot (current-browser)))
 
 (defn screenshot
   "Takes a screen capture from the given DOM node and returns a BufferedImage
    instance containing the screenshot. DOM node must be visible or otherwise
    an exception is thrown."
-  ([node {:keys [masked-nodes]}]
+  [node]
+  (let-visible [n node]
+    (util/scroll-into-view! n)
     ; for some reason, Chrome's "clip" option in .captureScreenshot does not match the
     ; bounding box rect of the node so we need to do it manually here in JVM...
-   (let [n  (visible node)
-         _  (util/scroll-into-view! n)
-         bb (util/bounding-box n)]
-     (-> (util/scaled-screenshot (-browser))
-         (util/mask-nodes masked-nodes)
-         (util/crop (:left bb) (:top bb) (:width bb) (:height bb)))))
-  ([node] (screenshot node {})))
+    (let [bb (util/bounding-box n)]
+      (-> (util/scaled-screenshot (current-browser))
+          (util/crop (:left bb) (:top bb) (:width bb) (:height bb))))))
 
-(defn goto!
+
+;; Mutations
+
+(defmacro goto!
   "Navigates the page to the given URL."
-  [^String url]
-  (-run-mutation
-    (call #(.navigate (.getPage (-t)) url))))
+  [url]
+  `(run-mutation
+     (call #(.navigate (.getPage (dev-tools)) ~url))
+     '(goto! ~url)))
 
-(defn scroll-to!
+(defmacro scroll-to!
   "Scrolls window to the given DOM node if that node is not already visible
    in the current viewport"
   [node]
-  (-run-node-mutation [n node]
-    (util/scroll-into-view! n)))
+  `(run-mutation
+     (let-visible [node# ~node]
+       (util/scroll-into-view! node#))
+     '(scroll-to! ~node)))
 
-(defn click!
+(defmacro click!
   "Clicks the given DOM element."
   [node]
-  (-run-node-mutation [n node]
-    (util/scroll-into-view! n)
-    (input/mouse-click! (:browser n) (util/bbox-center n))))
+  `(run-mutation
+     (let-visible [node# ~node]
+       (let [r# (rect node#)]
+         (if (and (pos? (:width r#))
+                  (pos? (:height r#)))
+           (do (util/scroll-into-view! node#)
+               (input/mouse-click! (:browser node#) (util/bbox-center node#)))
+           (throw (ex/retryable "Node is visible but has zero width and/or height")))))
+     (~'click! ~node)))
 
-(defn hover!
+(defmacro hover!
   "Hover mouse over the given DOM element."
   [node]
-  (-run-node-mutation [n node]
-    (util/scroll-into-view! n)
-    (input/mouse-move! (:browser n) (util/bbox-center n))))
+  `(run-mutation
+     (let-visible [node# ~node]
+       (let [r# (rect node#)]
+         (if (and (pos? (:width r#))
+                  (pos? (:height r#)))
+           (do (util/scroll-into-view! node#)
+               (input/mouse-move! (:browser node#) (util/bbox-center node#)))
+           (throw (ex/retryable "Node is visible but has zero width and/or height")))))
+     '(hover! ~node)))
 
-(defn focus!
+(defmacro focus!
   "Focus on the given DOM element."
   [node]
-  (-run-node-mutation [n node]
-    (util/scroll-into-view! n)
-    (call-node #(-> (.getDOM (tools (:browser n)))
-                    (.focus (node-id n) nil nil)))))
+  `(run-mutation
+     (let-visible [node# ~node]
+       (util/scroll-into-view! node#)
+       (call-node #(-> (.getDOM (browser/tools (:browser node#)))
+                       (.focus (node-id node#) nil nil))))
+     '(focus! ~node)))
 
-(defn select-text!
+(defmacro select-text!
   "Selects all text from the given input DOM element. If element is
    not active, it is activated first by clicking it."
   [input-node]
-  (-run-node-mutation [n input-node]
-    (if-not (active? n) (click! n))
-    (js/exec-in n "try{this.setSelectionRange(0,this.value.length);}catch(e){}")))
+  `(run-mutation
+     (let-visible [node# ~input-node]
+       (if-not (active? node#) (click! node#))
+       (js/exec-in node# "try{this.setSelectionRange(0,this.value.length);}catch(e){}"))
+     '(select-text! ~input-node)))
 
-(defn type!
+(defmacro type!
   "Types text to the given input element. If element is not active,
    it is activated first by clicking it."
   [input-node & keys]
-  (-run-node-mutation [n input-node]
-    (if-not (active? n) (click! n))
-    (input/type! (:browser n) keys (:typing-speed *config*))))
+  `(run-mutation
+     (let-visible [node# ~input-node]
+       (if-not (active? node#) (click! node#))
+       (input/type! (:browser node#) ~(vec keys) (:typing-speed *config*)))
+     ~(cons 'type! (cons input-node keys))))
 
-(defn clear-text!
+(defmacro clear-text!
   "Clears all text from the given input DOM element by selecting all
    text and pressing backspace. If element is not active, it is
    activated first by clicking it."
   [input-node]
-  (doto input-node
-    (select-text!)
-    (type! :backspace)))
+  `(run-mutation
+     (do (select-text! ~input-node)
+         (type! ~input-node :backspace))
+     '(clear-text! ~input-node)))
 
-(defn select!
+(defmacro select!
+  "Selects the given value (values if multiselect) to the given select node"
   [select-node & values]
-  {:pre [(every? string? values)]}
-  (-run-node-mutation [n select-node]
-    (js/exec-in n "
-      if (this.nodeName.toLowerCase() !== 'select') throw new Error('Not a select node');
-      var opts = Array.prototype.slice.call(this.options);
-      for(var i = 0; i < opts.length; i++) {
-        var o = opts[i];
-        if ((o.selected = vals.includes(o.value)) && !this.multiple) {
-          break;
-        }
-      }
-      this.dispatchEvent(new Event('input', {bubbles: true}));
-      this.dispatchEvent(new Event('change', {bubbles: true}));
-    " ["vals" (vec values)])))
+  `(run-mutation
+     (let-visible [node# ~select-node]
+       (let [vals# ~(vec values)]
+         (assert (every? string? vals#))
+         (js/exec-in node# "
+            if (this.nodeName.toLowerCase() !== 'select') throw new Error('Not a select node');
+            var opts = Array.prototype.slice.call(this.options);
+            for(var i = 0; i < opts.length; i++) {
+              var o = opts[i];
+              if ((o.selected = vals.includes(o.value)) && !this.multiple) {
+                break;
+              }
+            }
+            this.dispatchEvent(new Event('input', {bubbles: true}));
+            this.dispatchEvent(new Event('change', {bubbles: true}));
+          " ["vals" (vec vals#)])))
+     ~(cons 'select! (cons select-node values))))
 
-(defn default-mutation-wrapper
-  "Default wrapper that surrounds for each mutation function.
-   Holds the execution until all document (re)loads, XHR requests
-   and animations have been finished that were started after
-   the mutation."
-  [operation]
-  (letfn [(watched-task? [{:keys [task-type request-type]}]
-            (and (= :http-request task-type)
-                 (contains? #{:document :xhr} request-type)))
-          (watched-tasks []
-            (->> (running-activities)
-                 (filter watched-task?)
-                 (set)))]
-    (let [before (watched-tasks)]
-      (operation)
-      ; JavScript apps are slow - let them some time to fire the requests before we actually start polling them
-      (sleep 100)
-      (wait (empty? (difference (watched-tasks) before))))))
+(defmacro set-files!
+  "Sets the file(s) to the given input node. All files must instances of
+   class java.io.File."
+  [input-node & files]
+  `(run-mutation
+     (let-visible [node# ~input-node]
+       (let [fs# ~files]
+         (assert (every? #(instance? File %) fs#))
+         (call-node #(-> (.getDOM (browser/tools (:browser node#)))
+                         (.setFileInputFiles (->> (map (fn [f#] (.getAbsolutePath f#)) fs#)
+                                                  (apply list)))))))))

@@ -254,12 +254,6 @@
          (util/crop (:left bb) (:top bb) (:width bb) (:height bb)))))
   ([node] (screenshot node {})))
 
-(defn png-bytes
-  "Converts the given (screenshot) image to PNG format and returns a byte array
-   of the encoded data."
-  [^BufferedImage image]
-  (util/png-bytes image))
-
 (defn goto!
   "Navigates the page to the given URL."
   [^String url]

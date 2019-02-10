@@ -1,14 +1,13 @@
 (ns cuic.impl.util
-  (:require [clojure.tools.logging :refer [debug]]
+  (:require [clojure.tools.logging :refer [trace]]
             [cuic.impl.js-bridge :as js]
             [cuic.impl.exception :refer [call]]
-            [cuic.impl.browser :refer [tools]]
-            [cuic.impl.dom-node :refer [visible]])
+            [cuic.impl.browser :refer [tools]])
   (:import (java.util Base64)
            (java.awt.image BufferedImage)
-           (java.awt Color Image)
-           (java.io ByteArrayInputStream ByteArrayOutputStream)
-           (javax.imageio ImageIO)))
+           (java.awt Image)
+           (javax.imageio ImageIO)
+           (java.io ByteArrayInputStream)))
 
 (defn- px [num]
   (int (Math/floor (double num))))
@@ -22,7 +21,7 @@
              :y y'
              :w (max 0 (- (min (px (+ x w)) iw) x'))
              :h (max 0 (- (min (px (+ y h)) ih) y'))}]
-    (debug "Fit" x y w h "to" fit)
+    (trace "Fit" x y w h "to" fit)
     fit))
 
 (defn scroll-into-view! [node]
@@ -73,23 +72,3 @@
   (let [r (fit-rect im {:x x :y y :w w :h h})]
     (.getSubimage im (:x r) (:y r) (:w r) (:h r))))
 
-(defn mask-rects [^BufferedImage im rects]
-  (when (seq rects)
-    (let [g (doto (.createGraphics im)
-              (.setColor Color/BLACK))]
-      (try
-        (doseq [{:keys [x y w h]} rects]
-          (.fillRect g x y w h))
-        (finally
-          (.dispose g)))))
-  im)
-
-(defn mask-nodes [^BufferedImage im nodes]
-  (->> (keep #(try (bounding-box (visible %)) (catch Exception _)) nodes)
-       (map (fn [{:keys [top left width height]}] {:x left :y top :w width :h height}))
-       (mask-rects im)))
-
-(defn png-bytes [^BufferedImage im]
-  (let [bos (ByteArrayOutputStream.)]
-    (ImageIO/write im "PNG" bos)
-    (.toByteArray bos)))

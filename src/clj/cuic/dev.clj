@@ -2,10 +2,7 @@
   (:require [clojure.pprint :refer [pprint]]
             [cuic.core :as c]
             [cuic.impl.dom-node :refer [node?]]
-            [cuic.impl.js-bridge :as js])
-  (:import (java.awt.image BufferedImage)
-           (javax.swing ImageIcon JFrame JLabel)
-           (java.awt FlowLayout Dimension EventQueue)))
+            [cuic.impl.js-bridge :as js]))
 
 (defn set-browser!
   "Forcefully sets the default browser to the given one so that every core
@@ -35,22 +32,6 @@
    (doto (c/launch! (merge default-launch-opts opts))
      (set-browser!)))
   ([] (launch-as-default! {})))
-
-(defn preview-image [image]
-  {:pre [(instance? BufferedImage image)]}
-  (let [width    (+ 40 (.getWidth image))
-        height   (+ 40 (.getHeight image))
-        frame    (doto (JFrame.)
-                   (.setLayout (FlowLayout.))
-                   (.setSize width height)
-                   (.setMinimumSize (Dimension. width height))
-                   (.add (doto (JLabel.)
-                           (.setIcon (ImageIcon. image))))
-                   (.setVisible true)
-                   (.setDefaultCloseOperation JFrame/HIDE_ON_CLOSE))
-        to-front #(do (.toFront frame)
-                      (.repaint frame))]
-    (EventQueue/invokeLater to-front)))
 
 (defn inspect [nodes]
   {:pre [(every? node? nodes)]}

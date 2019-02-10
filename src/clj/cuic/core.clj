@@ -28,19 +28,27 @@
 ;; General
 
 (defmacro run-query
+  "Helper macro to run query/queries to the given node:
+   (run-query [n (c/q ...)]
+     (do-something (dev-tools)))
+  "
   {:style/indent 0}
   [[binding expr] & body]
   `(let-some [~binding ~expr]
      (ignore-stale ~@body)))
 
 (defmacro run-mutation
+  "Helper macro to run wait/retry capable mutation
+   (run-mutation (my-mutation ...)
+     (do-something! (dev-tools)))
+  "
   {:style/indent 0}
-  [mutation & [description]]
+  [description mutation]
   `(try
      (retry/loop* #(do ~mutation true) *browser* *config*)
      nil
      (catch Exception ex#
-       (throw (ex/mutation-failure ex# '~(or description mutation))))))
+       (throw (ex/mutation-failure ex# '~description)))))
 
 (defn current-browser
   "Returns the current browser instance."
@@ -111,7 +119,7 @@
    points to the given node. Return value of the expression is converted into
    Clojure data structure. Supports async expressions (await keyword)."
   (let-existing [n node-ctx]
-                (js/eval-in n js-code)))
+    (js/eval-in n js-code)))
 
 (defn visible?
   "Returns boolean whether the given DOM node is visible in DOM or not"
@@ -252,23 +260,21 @@
 (defmacro goto!
   "Navigates the page to the given URL."
   [url]
-  `(run-mutation
-     (call #(.navigate (.getPage (dev-tools)) ~url))
-     '(goto! ~url)))
+  `(run-mutation (~'goto! ~url)
+     (call #(.navigate (.getPage (dev-tools)) ~url))))
 
 (defmacro scroll-to!
   "Scrolls window to the given DOM node if that node is not already visible
    in the current viewport"
   [node]
-  `(run-mutation
+  `(run-mutation (~'scroll-to! ~node)
      (let-visible [node# ~node]
-       (util/scroll-into-view! node#))
-     '(scroll-to! ~node)))
+       (util/scroll-into-view! node#))))
 
 (defmacro click!
   "Clicks the given DOM element."
   [node]
-  `(run-mutation
+  `(run-mutation (~'click! ~node)
      (let-visible [node# ~node]
        (let [r# (rect node#)]
          (if (and (pos? (:width r#))
@@ -282,66 +288,60 @@
                  (util/clear-clicks! (:browser node#))
                  (if-not was-clicked#
                    (throw (ex/retryable "Node could not be clicked for some reason")))))
-           (throw (ex/retryable "Node is visible but has zero width and/or height")))))
-     (~'click! ~node)))
+           (throw (ex/retryable "Node is visible but has zero width and/or height")))))))
 
 (defmacro hover!
   "Hover mouse over the given DOM element."
   [node]
-  `(run-mutation
+  `(run-mutation (~'hover! ~node)
      (let-visible [node# ~node]
        (let [r# (rect node#)]
          (if (and (pos? (:width r#))
                   (pos? (:height r#)))
            (do (util/scroll-into-view! node#)
                (input/mouse-move! (:browser node#) (util/bbox-center node#)))
-           (throw (ex/retryable "Node is visible but has zero width and/or height")))))
-     '(hover! ~node)))
+           (throw (ex/retryable "Node is visible but has zero width and/or height")))))))
 
 (defmacro focus!
   "Focus on the given DOM element."
   [node]
-  `(run-mutation
+  `(run-mutation (~'focus! ~node)
      (let-visible [node# ~node]
        (util/scroll-into-view! node#)
        (call-node #(-> (.getDOM (browser/tools (:browser node#)))
-                       (.focus (node-id node#) nil nil))))
-     '(focus! ~node)))
+                       (.focus (node-id node#) nil nil))))))
 
 (defmacro select-text!
   "Selects all text from the given input DOM element. If element is
    not active, it is activated first by clicking it."
   [input-node]
-  `(run-mutation
+  `(run-mutation (~'select-text! ~input-node)
      (let-visible [node# ~input-node]
        (if-not (active? node#) (click! node#))
-       (js/exec-in node# "try{this.setSelectionRange(0,this.value.length);}catch(e){}"))
-     '(select-text! ~input-node)))
+       (js/exec-in node# "try{this.setSelectionRange(0,this.value.length);}catch(e){}"))))
 
 (defmacro type!
   "Types text to the given input element. If element is not active,
    it is activated first by clicking it."
   [input-node & keys]
-  `(run-mutation
+  `(run-mutation ~(cons 'type! (cons input-node keys))
      (let-visible [node# ~input-node]
        (if-not (active? node#) (click! node#))
-       (input/type! (:browser node#) ~(vec keys) (:typing-speed *config*)))
-     ~(cons 'type! (cons input-node keys))))
+       (input/type! (:browser node#) ~(vec keys) (:typing-speed *config*)))))
 
 (defmacro clear-text!
   "Clears all text from the given input DOM element by selecting all
    text and pressing backspace. If element is not active, it is
    activated first by clicking it."
   [input-node]
-  `(run-mutation
+  `(run-mutation (~'clear-text! ~input-node)
      (do (select-text! ~input-node)
-         (type! ~input-node :backspace))
-     '(clear-text! ~input-node)))
+         (type! ~input-node :backspace))))
 
 (defmacro select!
   "Selects the given value (values if multiselect) to the given select node"
   [select-node & values]
-  `(run-mutation
+  `(run-mutation ~(cons 'select! (cons select-node values))
      (let-visible [node# ~select-node]
        (let [vals# ~(vec values)]
          (assert (every? string? vals#))
@@ -356,14 +356,13 @@
             }
             this.dispatchEvent(new Event('input', {bubbles: true}));
             this.dispatchEvent(new Event('change', {bubbles: true}));
-          " ["vals" (vec vals#)])))
-     ~(cons 'select! (cons select-node values))))
+          " ["vals" (vec vals#)])))))
 
 (defmacro set-files!
   "Sets the file(s) to the given input node. All files must instances of
    class java.io.File."
   [input-node & files]
-  `(run-mutation
+  `(run-mutation ~(cons 'set-files! files)
      (let-visible [node# ~input-node]
        (let [fs# ~files]
          (assert (every? #(instance? File %) fs#))

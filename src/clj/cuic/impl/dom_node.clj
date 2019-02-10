@@ -46,33 +46,25 @@
   (instance? DOMNode x))
 
 (defn maybe [x]
-  (cond
-    (node? x) x
-    (sequential? x)
-    (if (<= (count x) 1)
-      (maybe (first x))
-      (throw (ex/retryable "Node list can't contain more than one node" {:list (vec x)})))
-    (nil? x) nil
-    :else (throw (ex/retryable "Value is not a valid DOM node" {:value x}))))
+  (condp #(%1 %2) x
+    nil? nil
+    fn? (maybe (x))
+    node? x
+    sequential?
+    (case (count x)
+      0 nil
+      1 (maybe (first x))
+      (throw (ex/retryable (str "Expected exactly 1 node but got " (count x) " instead"))))
+    (throw (ex/retryable (str "Value is not a valid DOM node: " (pr-str x))))))
 
 (defn existing [x]
-  (cond
-    (node? x) x
-    (sequential? x)
+  (condp #(%1 %2) x
+    nil? nil
+    fn? (existing (x))
+    node? x
+    sequential?
     (case (count x)
-      1 (existing (first x))
-      0 (throw (ex/retryable "Node list can't be empty"))
-      (throw (ex/retryable "Node list must contain exactly one node" {:list (vec x)})))
-    :else (throw (ex/retryable "Value is not a valid DOM node" {:value x}))))
-
-(defn visible [x]
-  (cond
-    (node? x) (if (js/eval-in x "!!this.offsetParent") x (throw (ex/retryable "Node is not visible" {:node x})))
-    (sequential? x)
-    (case (count x)
-      1 (visible (first x))
-      0 (throw (ex/retryable "Node list can't be empty"))
-      (throw (ex/retryable "Node list must contain exactly one node" {:list (vec x)})))
-    :else (throw (ex/retryable "Value is not a valid DOM node" {:value x}))))
-
-
+      0 (throw (ex/retryable "Node not found from DOM"))
+      1 (maybe (first x))
+      (throw (ex/retryable (str "Expected exactly 1 node but got " (count x) " instead"))))
+    (throw (ex/retryable (str "Value is not a valid DOM node: " (pr-str x))))))

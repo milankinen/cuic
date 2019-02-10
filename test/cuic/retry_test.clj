@@ -14,22 +14,6 @@
 
 (use-fixtures :each (fn [t] (binding [c/*config* (assoc c/*config* :timeout 500)] (t))))
 
-(deftest with-retry
-  (testing "return value does not matter, try-retry always returns nil"
-    (is (nil? (c/with-retry true)))
-    (is (nil? (c/with-retry false)))
-    (is (nil? (c/with-retry nil))))
-  (testing "CUIC related retryable exceptions are captured but other exceptions are passed through"
-    (let [stale-ex-f   (throw-once (ex/stale-node (RuntimeException. "Tsers")))
-          runtime-ex-f (throw-once (RuntimeException. "Tsers"))
-          js-error-f   (throw-once (ex/js-error "TypeError"))]
-      (is (nil? (c/with-retry (stale-ex-f))))
-      (is (thrown? RuntimeException (c/with-retry (runtime-ex-f))))
-      (is (thrown? ExecutionException (c/with-retry (js-error-f))))))
-  (testing "timeout exception is thrown if function does not resolve within timeout"
-    (let [ex (is (thrown? WaitTimeoutException (c/with-retry (throw (ex/stale-node (RuntimeException. "Tsers"))))))]
-      (is (ex/stale-node? (.getCause ex))))))
-
 (deftest wait
   (testing "return value must be truthy"
     (is (= true (c/wait true)))
@@ -40,7 +24,7 @@
     (let [stale-ex-f   (throw-once (ex/stale-node (RuntimeException. "Tsers")))
           runtime-ex-f (throw-once (RuntimeException. "Tsers"))
           js-error-f   (throw-once (ex/js-error "TypeError"))]
-      (is (nil? (c/with-retry (stale-ex-f))))
-      (is (thrown? RuntimeException (c/with-retry (runtime-ex-f))))
-      (is (thrown? ExecutionException (c/with-retry (js-error-f)))))))
+      (is (true? (c/wait (stale-ex-f))))
+      (is (thrown? RuntimeException (c/wait (runtime-ex-f))))
+      (is (thrown? ExecutionException (c/wait (js-error-f)))))))
 

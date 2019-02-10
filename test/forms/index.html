@@ -37,6 +37,13 @@
   <input type="checkbox"> Check
 </div>
 
+<div id="lazy">
+  <button onclick="setTimeout(function() { document.querySelector('#lazy input').removeAttribute('hidden') }, 200)">
+    Activate
+  </button>
+  <input hidden value="" />
+</div>
+
 <p id="fail">tsers?</p>
 
 </body>

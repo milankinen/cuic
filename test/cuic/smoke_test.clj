@@ -15,6 +15,7 @@
 
 (defn ui-test-case-fixture [test]
   (c/goto! "http://localhost:5000")
+  (c/wait (seq (c/q "#todoapp")))
   (test))
 
 (use-fixtures :once ui-test-suite-fixture)
@@ -59,30 +60,27 @@
 (deftest adding-new-todo
   (testing "new todo items are displayed on the list"
     (is* (= (empty? (todo-items))))
-    (c/with-retry
-      (add-todo! "lol")
-      (add-todo! "bal"))
+    (add-todo! "lol")
+    (add-todo! "bal")
     (is* (= ["lol" "bal"] (map todo-text (todo-items))))))
 
 (deftest removing-todo
   (testing "todo is removed from the list"
-    (c/with-retry
-      (add-todo! "lol")
-      (add-todo! "bal"))
+    (add-todo! "lol")
+    (add-todo! "bal")
     (is* (= 2 (count (todo-items))))
-    (c/with-retry (remove-todo! (first (todo-items))))
+    (remove-todo! (first (todo-items)))
     (is* (= 1 (count (todo-items))))))
 
 (deftest marking-todo-as-completed-and-removing-it
   (testing "completed todos can be removed by clicking 'clear completed' button"
-    (c/with-retry
-      (add-todo! "lol")
-      (add-todo! "bal")
-      (add-todo! "foo"))
+    (add-todo! "lol")
+    (add-todo! "bal")
+    (add-todo! "foo")
     (is* (= [false false false] (map todo-completed? (todo-items))))
     (is* (not (c/visible? (clear-completed-button))))
-    (c/with-retry (toggle-complete-status! (todo-by-text "bal")))
+    (toggle-complete-status! (todo-by-text "bal"))
     (is* (= [false true false] (map todo-completed? (todo-items))))
     (is* (c/visible? (clear-completed-button)))
-    (c/with-retry (c/click! (clear-completed-button)))
+    (c/click! (clear-completed-button))
     (is* (= ["lol" "foo"] (map todo-text (todo-items))))))

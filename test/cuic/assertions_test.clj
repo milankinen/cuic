@@ -60,7 +60,7 @@
              (run-is-test (stale-ex-f))))))
   (testing "other errors are marked as :error type"
     (let [js-ex-f (throw-once (ex/js-error "TypeError"))]
-      (is (= [{:actual   "JavaScript error"
+      (is (= [{:actual   "JavaScript evaluation error: TypeError"
                :expected '(js-ex-f)
                :message  nil
                :type     :error}]

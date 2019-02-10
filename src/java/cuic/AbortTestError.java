@@ -1,8 +1,8 @@
 package cuic;
 
 public class AbortTestError extends Error {
-  public AbortTestError() {
-    super("Test aborted because assertion did not pass");
+  public AbortTestError(String message) {
+    super(message);
     StackTraceElement topFrame = this.getStackTrace()[0];
     for (StackTraceElement ste : this.getStackTrace()) {
       if (ste != topFrame && ste.getFileName() != null && ste.getFileName().equals(topFrame.getFileName()) && ste.getLineNumber() == topFrame.getLineNumber()) {

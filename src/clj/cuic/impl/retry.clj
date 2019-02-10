@@ -3,10 +3,11 @@
             [cuic.impl.exception :as ex]
             [cuic.impl.util :refer [decode-base64]]
             [cuic.impl.browser :refer [tools]])
-
-
   (:import (java.text SimpleDateFormat)
            (java.util Date)))
+
+(defn- t []
+  (System/currentTimeMillis))
 
 (defn- try-run [f]
   (try
@@ -34,22 +35,20 @@
     (catch Exception e
       (println " > Could not take screenshot:" (.getMessage e)))))
 
-(defn- do-timeout [expr-form descr value error browser {:keys [take-screenshot-on-timeout screenshot-dir]}]
+(defn- do-timeout [actual error browser {:keys [take-screenshot-on-timeout screenshot-dir]}]
   (if (and (some? browser)
            (true? take-screenshot-on-timeout))
     (try-take-screenshot! browser screenshot-dir))
-  (throw (ex/timeout expr-form descr value error)))
+  (throw (ex/timeout actual error)))
 
 
-(defn loop* [f browser {:keys [timeout] :as config} expr-form]
-  (loop [start (System/currentTimeMillis)]
-    (let [{:keys [value error] :as res} (try-run f)]
-      (if value
-        value
-        (do (when (> (- (System/currentTimeMillis) start) timeout)
-              (let [descr (if (contains? res :value)
-                            (str ", latest value was: " (pr-str value)))]
-                (do-timeout expr-form descr value error browser config)))
+(defn loop* [f browser config]
+  (loop [start (t)]
+    (let [{:keys [value error]} (try-run f)]
+      (if-not value
+        (do (when (> (- (t) start) (:timeout config))
+              (do-timeout value error browser config))
             (Thread/sleep 50)
-            (recur start))))))
+            (recur start))
+        value))))
 

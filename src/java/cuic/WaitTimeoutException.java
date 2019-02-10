@@ -1,10 +1,13 @@
 package cuic;
 
-import clojure.lang.ExceptionInfo;
-import clojure.lang.IPersistentMap;
+public class WaitTimeoutException extends RuntimeException {
+  private final Object actual;
+  public WaitTimeoutException(Object actual, Throwable cause) {
+    super("Wait timeout exceeded", cause);
+    this.actual = actual;
+  }
 
-public class WaitTimeoutException extends ExceptionInfo {
-  public WaitTimeoutException(String message, IPersistentMap data, Throwable cause) {
-    super(message, data, cause);
+  public Object getActual() {
+    return this.actual;
   }
 }

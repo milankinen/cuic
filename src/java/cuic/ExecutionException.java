@@ -1,15 +1,13 @@
 package cuic;
 
-import clojure.lang.ExceptionInfo;
-import clojure.lang.IPersistentMap;
 import clojure.lang.Keyword;
 
-public class ExecutionException extends ExceptionInfo {
+public class ExecutionException extends RuntimeException {
   private final boolean retryable;
   private final Keyword type;
 
-  public ExecutionException(String message, boolean retryable, Keyword type, IPersistentMap data, Throwable cause) {
-    super(message, data, cause);
+  public ExecutionException(String message, boolean retryable, Keyword type, Throwable cause) {
+    super(message, cause);
     this.retryable = retryable;
     this.type = type;
   }

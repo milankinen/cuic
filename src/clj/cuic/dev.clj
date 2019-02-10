@@ -33,7 +33,9 @@
      (set-browser!)))
   ([] (launch-as-default! {})))
 
-(defn inspect [nodes]
+(defn inspect
+  "Logs the given DOM nodes to then opened browser's console"
+  [nodes]
   {:pre [(every? node? nodes)]}
   (doseq [n nodes]
-    (js/exec-in n "console.log(this)")))
+    (js/exec-in n "console.log('\uD83D\uDC26\uD83D\uDD0D', this)")))

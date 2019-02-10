@@ -37,6 +37,16 @@
      return {top: r.top, left: r.left, width: r.width, height: r.height};
   "))
 
+(defn was-really-clicked? [node]
+  (loop [n 5]
+    (or (js/eval-in node "window.__cuic_clicks.has(this)")
+        (and (pos? n)
+             (do (Thread/sleep 50)
+                 (recur (dec n)))))))
+
+(defn clear-clicks! [browser]
+  (js/eval browser "window.__cuic_clicks.clear() && null"))
+
 (defn bbox-center [node]
   (let [{:keys [top left width height]} (bounding-box node)]
     {:x (+ left (/ width 2))

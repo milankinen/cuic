@@ -274,7 +274,14 @@
          (if (and (pos? (:width r#))
                   (pos? (:height r#)))
            (do (util/scroll-into-view! node#)
-               (input/mouse-click! (:browser node#) (util/bbox-center node#)))
+               (input/mouse-click! (:browser node#) (util/bbox-center node#))
+               ; this tries to mitigate the nasty edge case when the node is "moving" in
+               ; the DOM due to animations/data loading etc... this simulates human behaviour
+               ; "oh I missed, let's try again
+               (let [was-clicked# (util/was-really-clicked? node#)]
+                 (util/clear-clicks! (:browser node#))
+                 (if-not was-clicked#
+                   (throw (ex/retryable "Node could not be clicked for some reason")))))
            (throw (ex/retryable "Node is visible but has zero width and/or height")))))
      (~'click! ~node)))
 

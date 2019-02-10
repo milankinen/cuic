@@ -11,6 +11,8 @@
   (:import (java.io File)
            (cuic WaitTimeoutException AbortTestError)))
 
+(declare matches-snapshot?)
+
 (defn- sorted-map-keys [x]
   (postwalk #(if (map? %) (into (sorted-map) %) %) x))
 
@@ -63,40 +65,20 @@
           (println " > Snapshot written : " (.getAbsolutePath e-file))
           true))))
 
-(defmacro -with-retry [f expr-form]
+(defmacro -with-retry [f assertion-form]
   `(let [report# (atom nil)
          result# (with-redefs [t/do-report #(reset! report# %)]
                    (try
-                     (retry/loop* ~f *browser* *config* ~expr-form)
+                     (retry/loop* ~f *browser* *config*)
                      (catch WaitTimeoutException e#
                        (if-some [cause# (.getCause e#)]
                          (throw cause#)
-                         (:actual (ex-data e#))))))]
+                         (.getActual e#)))))]
      (some-> @report# (t/do-report))
      (if (and (contains? #{:fail :error} (:type @report#))
               (true? (:abort-on-failed-assertion *config*)))
-       (throw (AbortTestError.)))
+       (throw (AbortTestError. (str "Test was aborted due to failed assertion: " ~assertion-form))))
      result#))
-
-(defmacro is*
-  "Assertion macro that works like clojure.test/is but if the result value is
-   non-truthy or asserted expression throws a cuic exception, then expression
-   is re-tried until truthy value is received or timeout exceeds."
-  [form]
-  `(let [do-report# t/do-report]
-     (with-redefs [t/do-report #(if (instance? AbortTestError (:actual %))
-                                  (throw (:actual %))
-                                  (do-report# %))]
-       (t/is (-with-retry #(do ~(t/assert-expr nil form)) '~form)))))
-
-
-(defn matches-snapshot?
-  [snapshot-id actual]
-  {:pre [(keyword? snapshot-id)]}
-  (let [predicate #(= %1 %2)
-        read      read-edn
-        write!    #(spit (io/file %1) (with-out-str (pprint (sorted-map-keys %2))))]
-    (test-snapshot snapshot-id actual predicate read write! "edn")))
 
 (defn -assert-snapshot [msg [match? id actual]]
   `(let [id#       (do ~id)
@@ -137,3 +119,31 @@
 
 (defmethod t/assert-expr `-with-retry [msg form]
   (-assert-with-retry msg form))
+
+;; Public API
+
+(defmacro is*
+  "Assertion macro that works like clojure.test/is but if the result value is
+   non-truthy or asserted expression throws a cuic exception, then expression
+   is re-tried until truthy value is received or timeout exceeds."
+  [form]
+  `(let [do-report# t/do-report]
+     (with-redefs [t/do-report #(if (instance? AbortTestError (:actual %))
+                                  (throw (:actual %))
+                                  (do-report# %))]
+       (t/is (-with-retry #(do ~(t/assert-expr nil form)) '~form)))))
+
+(defn matches-snapshot?
+  "Tries to match the given actual data to the snapshot associated to the
+   given id (keyword). If snapshot does not exist, this function creates it.
+   All data that can be serialized with `pr-str` can be tested with snapshot
+   testing.
+
+   HINT: Use fully qualified keyword to distinguish snapshots from different
+   test namespaces. You can also share same snapshots by using same id."
+  [snapshot-id actual]
+  {:pre [(keyword? snapshot-id)]}
+  (let [predicate #(= %1 %2)
+        read      read-edn
+        write!    #(spit (io/file %1) (with-out-str (pprint (sorted-map-keys %2))))]
+    (test-snapshot snapshot-id actual predicate read write! "edn")))

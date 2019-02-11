@@ -2,6 +2,7 @@
   (:refer-clojure :exclude [eval])
   (:require [clojure.string :as string]
             [clojure.set :refer [difference]]
+            [clojure.spec.alpha :as s]
             [cuic.impl.macro :refer [let-some let-existing let-visible ignore-stale]]
             [cuic.impl.browser :as browser]
             [cuic.impl.dom-node :refer [->DOMNode maybe existing node-id node-id->object-id]]
@@ -14,11 +15,34 @@
   (:import (com.github.kklisura.cdt.services ChromeDevToolsService)
            (java.io Closeable File)))
 
-;; Options
+;; Global options
 
-(defonce ^:dynamic *browser* nil)
-(defonce ^:dynamic *config*
-  {:typing-speed               :normal
+(defonce ^{:dynamic true
+           :doc     "Current browser instance that is used to perform queries
+                     and mutation. This **must** be set with `clojure.core/binding`
+                     before anything can be done."}
+*browser* nil)
+
+(defonce ^{:dynamic true
+           :doc     "
+Default configuration values that are used by queries and
+mutations. You can override these defaults at any point
+with the custom config by using `clojure.core/binding`. Valid
+config options are:
+
+  * `typing-speed` : One of predefined defaults `#{:slow :normal :fast :tycitys}` or
+     custom integer indicating strokes per second
+  * `timeout` : Timeout in millisecond after `wait` and mutation macros
+     stop retrying and bailout
+  * `take-screenshot-on-timeout` : Boolean flag indicating whether to try
+     to take a screenshot if timeout occurs
+  * `screenshot-dir` : Directory for saved screenshots
+  * `snapshot-dir` : Root directory for saved snapshots, see
+    `cuic.test/matches-snapshot?` for more details.
+  * `abort-on-failed-assertion` : Boolean flag indicating whether or not to
+     bailout if `is*` assertion fails"}
+*config*
+  {:typing-speed               :normal                      ; can also be a double strokes/sec
    :timeout                    10000
    :take-screenshot-on-timeout true
    :screenshot-dir             "target/__screenshots__"
@@ -29,8 +53,10 @@
 
 (defmacro run-query
   "Helper macro to run query/queries to the given node:
+   ```
    (run-query [n (c/q ...)]
      (do-something (dev-tools)))
+   ```
   "
   {:style/indent 0}
   [[binding expr] & body]
@@ -39,8 +65,10 @@
 
 (defmacro run-mutation
   "Helper macro to run wait/retry capable mutation
+   ```
    (run-mutation (my-mutation ...)
      (do-something! (dev-tools)))
+   ```
   "
   {:style/indent 0}
   [description mutation]
@@ -64,10 +92,13 @@
   {:pre [(pos? ms)]}
   (Thread/sleep ms))
 
-(defn launch!
-  "TODO docs"
+(defn launch! ^{:doc (str "Launches a Chrome browser instance by using the given options. "
+                          "Uses the following defaults:\n```\n"
+                          browser/opt-defaults-str
+                          "```")}
   ([opts]
-   (browser/launch! opts))
+   (assert (s/valid? browser/opts-spec opts))
+   (browser/launch! (merge browser/opts-defaults opts)))
   ([] (launch! {:headless true})))
 
 (defn close!
@@ -114,11 +145,11 @@
   [^String js-code]
   (js/eval (current-browser) js-code))
 
-(defn eval-in [node-ctx ^String js-code]
-  "Evaluates JavaScript expression in the given node context so that JS 'this'
+(defn eval-in [node ^String js-code]
+  "Evaluates JavaScript expression in the given node context so that JS `this`
    points to the given node. Return value of the expression is converted into
    Clojure data structure. Supports async expressions (await keyword)."
-  (let-existing [n node-ctx]
+  (let-existing [n node]
     (js/eval-in n js-code)))
 
 (defn visible?
@@ -193,7 +224,7 @@
         (set $)))
 
 (defn term-freqs
-  "Returns a number of occurrences per term in the given nodes inner text"
+  "Returns a number of occurrences per term in the given node's inner text"
   [node]
   (->> (string/split (or (inner-text node) "") #"[\n\s\t]+")
        (map string/trim)
@@ -234,6 +265,12 @@
   (or (run-query [n node]
         (js/eval-in n "!!this.disabled"))
       false))
+
+(defn running-tasks
+  "Returns a list of currently running browser tasks. Currently only in-flight
+   HTTP requests are supported."
+  []
+  (browser/tasks (current-browser)))
 
 (defn page-screenshot
   "Takes a screen capture from the currently visible page and returns a
@@ -339,7 +376,7 @@
          (type! ~input-node :backspace))))
 
 (defmacro select!
-  "Selects the given value (values if multiselect) to the given select node"
+  "Selects the given value (or values if multiselect) to the given select node"
   [select-node & values]
   `(run-mutation ~(cons 'select! (cons select-node values))
      (let-visible [node# ~select-node]
@@ -358,11 +395,11 @@
             this.dispatchEvent(new Event('change', {bubbles: true}));
           " ["vals" (vec vals#)])))))
 
-(defmacro set-files!
+(defmacro upload!
   "Sets the file(s) to the given input node. All files must instances of
-   class java.io.File."
+   class `java.io.File`."
   [input-node & files]
-  `(run-mutation ~(cons 'set-files! files)
+  `(run-mutation ~(cons 'upload! files)
      (let-visible [node# ~input-node]
        (let [fs# ~files]
          (assert (every? #(instance? File %) fs#))

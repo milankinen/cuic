@@ -5,19 +5,19 @@
 (defn type!
   "Types the given keys and text with the keyboard"
   [& keys]
-  (run-mutation
+  (run-mutation 'type!
     (input/type! (current-browser) keys (:typing-speed *config*))))
 
 (defn keyup!
   "Triggers key-up keyboard event"
   [key]
-  (run-mutation
+  (run-mutation 'keyup!
     (input/keyup! (current-browser) key)))
 
 (defn keydown!
   "Triggers key-down keyboard event"
   [key]
-  (run-mutation
+  (run-mutation 'keydown!
     (input/keydown! (current-browser) key)))
 
 (defn move-mouse!
@@ -25,7 +25,7 @@
   [x y]
   {:pre [(number? x)
          (number? y)]}
-  (run-mutation
+  (run-mutation 'move-mouse!
     (input/mouse-move! (current-browser) {:x x :y y})))
 
 (defn click!
@@ -33,5 +33,5 @@
   [x y]
   {:pre [(number? x)
          (number? y)]}
-  (run-mutation
+  (run-mutation 'click!
     (input/mouse-click! (current-browser) {:x x :y y})))

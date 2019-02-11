@@ -73,8 +73,9 @@ config options are:
   {:style/indent 0}
   [description mutation]
   `(try
-     (retry/loop* #(do ~mutation true) *browser* *config*)
-     nil
+     (let [result# (atom nil)]
+       (retry/loop* #(do (reset! result# ~mutation) true) *browser* *config*)
+       @result#)
      (catch Exception ex#
        (throw (ex/mutation-failure ex# '~description)))))
 
@@ -96,9 +97,9 @@ config options are:
                           "Uses the following defaults:\n```\n"
                           browser/opt-defaults-str
                           "```")}
-  ([opts]
-   (assert (s/valid? browser/opts-spec opts))
-   (browser/launch! (merge browser/opts-defaults opts)))
+([opts]
+ (assert (s/valid? browser/opts-spec opts))
+ (browser/launch! (merge browser/opts-defaults opts)))
   ([] (launch! {:headless true})))
 
 (defn close!
@@ -298,7 +299,8 @@ config options are:
   "Navigates the page to the given URL."
   [url]
   `(run-mutation (~'goto! ~url)
-     (call #(.navigate (.getPage (dev-tools)) ~url))))
+     (do (call #(.navigate (.getPage (dev-tools)) ~url))
+         (eval "window.location.href.toString()"))))
 
 (defmacro scroll-to!
   "Scrolls window to the given DOM node if that node is not already visible
@@ -306,7 +308,8 @@ config options are:
   [node]
   `(run-mutation (~'scroll-to! ~node)
      (let-visible [node# ~node]
-       (util/scroll-into-view! node#))))
+       (util/scroll-into-view! node#)
+       true)))
 
 (defmacro click!
   "Clicks the given DOM element."
@@ -321,10 +324,11 @@ config options are:
                ; this tries to mitigate the nasty edge case when the node is "moving" in
                ; the DOM due to animations/data loading etc... this simulates human behaviour
                ; "oh I missed, let's try again
-               (let [was-clicked# (util/was-really-clicked? node#)]
-                 (util/clear-clicks! (:browser node#))
-                 (if-not was-clicked#
-                   (throw (ex/retryable "Node could not be clicked for some reason")))))
+               (try
+                 (let [was-clicked# (util/was-really-clicked? node#)]
+                   (util/clear-clicks! (:browser node#))
+                   was-clicked#)
+                 (catch Exception ex# false)))
            (throw (ex/retryable "Node is visible but has zero width and/or height")))))))
 
 (defmacro hover!
@@ -336,7 +340,8 @@ config options are:
          (if (and (pos? (:width r#))
                   (pos? (:height r#)))
            (do (util/scroll-into-view! node#)
-               (input/mouse-move! (:browser node#) (util/bbox-center node#)))
+               (input/mouse-move! (:browser node#) (util/bbox-center node#))
+               true)
            (throw (ex/retryable "Node is visible but has zero width and/or height")))))))
 
 (defmacro focus!
@@ -346,7 +351,8 @@ config options are:
      (let-visible [node# ~node]
        (util/scroll-into-view! node#)
        (call-node #(-> (.getDOM (browser/tools (:browser node#)))
-                       (.focus (node-id node#) nil nil))))))
+                       (.focus (node-id node#) nil nil)))
+       true)))
 
 (defmacro select-text!
   "Selects all text from the given input DOM element. If element is
@@ -355,7 +361,8 @@ config options are:
   `(run-mutation (~'select-text! ~input-node)
      (let-visible [node# ~input-node]
        (if-not (active? node#) (click! node#))
-       (js/exec-in node# "try{this.setSelectionRange(0,this.value.length);}catch(e){}"))))
+       (js/exec-in node# "try{this.setSelectionRange(0,this.value.length);}catch(e){}")
+       true)))
 
 (defmacro type!
   "Types text to the given input element. If element is not active,
@@ -364,7 +371,8 @@ config options are:
   `(run-mutation ~(cons 'type! (cons input-node keys))
      (let-visible [node# ~input-node]
        (if-not (active? node#) (click! node#))
-       (input/type! (:browser node#) ~(vec keys) (:typing-speed *config*)))))
+       (input/type! (:browser node#) ~(vec keys) (:typing-speed *config*))
+       true)))
 
 (defmacro clear-text!
   "Clears all text from the given input DOM element by selecting all
@@ -373,7 +381,8 @@ config options are:
   [input-node]
   `(run-mutation (~'clear-text! ~input-node)
      (do (select-text! ~input-node)
-         (type! ~input-node :backspace))))
+         (type! ~input-node :backspace)
+         true)))
 
 (defmacro select!
   "Selects the given value (or values if multiselect) to the given select node"
@@ -393,7 +402,8 @@ config options are:
             }
             this.dispatchEvent(new Event('input', {bubbles: true}));
             this.dispatchEvent(new Event('change', {bubbles: true}));
-          " ["vals" (vec vals#)])))))
+          " ["vals" (vec vals#)])
+         true))))
 
 (defmacro upload!
   "Sets the file(s) to the given input node. All files must instances of

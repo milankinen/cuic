@@ -1,4 +1,4 @@
-(defproject cuic "0.4.0"
+(defproject cuic "0.4.1"
   :description "Concise UI testing with Clojure"
   :url "https://github.com/milankinen/cuic"
   :license {:name "MIT"

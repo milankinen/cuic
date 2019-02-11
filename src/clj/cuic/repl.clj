@@ -1,4 +1,4 @@
-(ns cuic.dev
+(ns cuic.repl
   (:require [clojure.pprint :refer [pprint]]
             [cuic.core :as c]
             [cuic.impl.dom-node :refer [node?]]

@@ -1,11 +1,10 @@
 (ns cuic.assertions-test
   (:require [clojure.test :refer [deftest testing use-fixtures is do-report]]
+            [clojure.java.io :as io]
             [cuic.core :as c]
             [cuic.test :as ct]
             [cuic.assertions-test]
-            [cuic.impl.exception :as ex]
-            [clojure.java.io :as io]
-            [cuic.dev])
+            [cuic.impl.exception :as ex])
   (:import (org.apache.commons.io FileUtils)
            (cuic AbortTestError)))
 

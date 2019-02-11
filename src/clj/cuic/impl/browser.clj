@@ -35,7 +35,6 @@
 
 (defn- build-args [{:keys [headless window-size] :as opts}]
   (letfn [(with-arg [builder [key val]]
-            (.println System/out (str key " " val))
             (if-let [m (->> (seq (.getMethods ChromeArguments$Builder))
                             (filter #(and (= (camelize key) (.getName %))
                                           (= 1 (count (.getParameterTypes %)))))

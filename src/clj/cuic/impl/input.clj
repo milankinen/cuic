@@ -160,6 +160,15 @@
       (and (vector? k) (keyword? (last k))) [(sym-with-modifiers k)]
       :else [k])))
 
+(defn- time-to-sleep [speed]
+  (case speed
+    :tycitys 5
+    :fast 25
+    :normal 50
+    :slow 100
+    (do (assert (and (integer? speed) (pos? speed)))
+        (max 1 (long (/ 1000.0 speed))))))
+
 (defn type! [browser keys-to-type speed]
   (let [resolved-keys (->> (mapcat flatten-key keys-to-type)
                            (resolve-aliases))]
@@ -168,11 +177,7 @@
       (validate-modifiers key))
     (doseq [key resolved-keys]
       (press-key! browser key)
-      (Thread/sleep (case speed
-                      :tycitys 5
-                      :fast 25
-                      :slow 100
-                      50)))))
+      (Thread/sleep (time-to-sleep speed)))))
 
 (defn keyup! [browser key]
   (let [k (->> (mapcat flatten-key [key])

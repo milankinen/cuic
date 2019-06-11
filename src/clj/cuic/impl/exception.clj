@@ -1,53 +1,35 @@
 (ns cuic.impl.exception
-  (:import (cuic ExecutionException WaitTimeoutException)
-           (com.github.kklisura.cdt.services.exceptions ChromeDevToolsInvocationException)))
+  (:import (cuic ExecutionException WaitTimeoutException AbortTestError)))
+
+(defn- strip-stacktrace [ex]
+  (let [st       (.getStackTrace ex)
+        stripped (drop-while #(re-find #"^cuic\." (.toString %)) (seq st))]
+    (.setStackTrace ex (into-array StackTraceElement stripped))
+    ex))
 
 (defn- ex-type [ex]
   (if (instance? ExecutionException ex)
     (.getType ex)))
 
-(defn retryable [^String msg]
-  (ExecutionException. msg true nil nil))
+(defn retryable-ex [& msgs]
+  (-> (ExecutionException. (apply str msgs) true nil nil)
+      (strip-stacktrace)))
 
-(defn timeout [actual cause]
-  (WaitTimeoutException. actual cause))
+(defn timeout-ex [form cause]
+  (-> (WaitTimeoutException. (str form) cause)
+      (strip-stacktrace)))
 
-(defn js-error [description]
-  (ExecutionException. (str "JavaScript evaluation error: " description) false :js-error nil))
+(defn js-execution-ex [description]
+  (-> (ExecutionException. (str "JavaScript evaluation error: " description) false :js-error nil)
+      (strip-stacktrace)))
 
-(defn stale-node [cause]
-  (ExecutionException. "Node not found from DOM" true :stale cause))
+(defn protocol-ex [cause]
+  (-> (ExecutionException. "Protocol exception occurred" false :protocol cause)
+      (strip-stacktrace)))
 
-(defn devtools-error [cause]
-  (ExecutionException. "Protocol exception occurred" false :protocol cause))
-
-(defn mutation-failure [cause mutation-description]
-  (let [cause (loop [c cause]
-                (if (or (= :mutation (ex-type c))
-                        (instance? WaitTimeoutException c))
-                  (recur (.getCause c))
-                  c))]
-    (ExecutionException. (str "Could not execute mutation " mutation-description
-                              (if cause (str ", cause: " cause)))
-                         false :mutation-failure cause)))
+(defn abort-test-ex []
+  (AbortTestError.))
 
 (defn retryable? [ex]
   (and (instance? ExecutionException ex)
        (true? (.isRetryable ex))))
-
-(defn stale-node? [ex]
-  (= :stale (ex-type ex)))
-
-(defn call-node [op]
-  (try
-    (op)
-    (catch ChromeDevToolsInvocationException e
-      (if (= -32000 (.getCode e))
-        (throw (stale-node e))
-        (throw (devtools-error e))))))
-
-(defn call [op]
-  (try
-    (op)
-    (catch ChromeDevToolsInvocationException e
-      (throw (devtools-error e)))))

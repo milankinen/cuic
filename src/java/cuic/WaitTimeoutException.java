@@ -1,13 +1,7 @@
 package cuic;
 
-public class WaitTimeoutException extends RuntimeException {
-  private final Object actual;
-  public WaitTimeoutException(Object actual, Throwable cause) {
-    super("Wait timeout exceeded", cause);
-    this.actual = actual;
-  }
-
-  public Object getActual() {
-    return this.actual;
+public class WaitTimeoutException extends CuicException {
+  public WaitTimeoutException(String form, Throwable cause) {
+    super("Timed out waiting for form: " + form, cause);
   }
 }

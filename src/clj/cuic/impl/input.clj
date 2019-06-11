@@ -2,7 +2,6 @@
   (:require [clojure.string :as string]
             [clojure.java.io :as io]
             [clojure.data.json :as json]
-            [cuic.impl.exception :refer [call]]
             [cuic.impl.browser :refer [tools]])
   (:import (clojure.lang Symbol)
            (com.github.kklisura.cdt.protocol.types.input DispatchMouseEventType DispatchMouseEventButton DispatchKeyEventType)))
@@ -40,36 +39,35 @@
 
 (defn- dispatch-kb-event! [browser {:keys [type modifiers key code key-identifier native-virtual-key-code
                                            windows-virtual-key-code text unmodified-text]}]
-  (call #(-> (.getInput (tools browser))
-             (.dispatchKeyEvent
-               type
-               modifiers
-               nil
-               text
-               unmodified-text
-               key-identifier
-               code
-               key
-               (some-> windows-virtual-key-code (int))
-               (some-> native-virtual-key-code (int))
-               nil                                          ; autorepeat?
-               nil                                          ; is keypad?
-               nil                                          ; is system key?
-               nil))))                                      ; location
-
+  (-> (.getInput (tools browser))
+      (.dispatchKeyEvent
+        type
+        modifiers
+        nil
+        text
+        unmodified-text
+        key-identifier
+        code
+        key
+        (some-> windows-virtual-key-code (int))
+        (some-> native-virtual-key-code (int))
+        nil                                                 ; autorepeat?
+        nil                                                 ; is keypad?
+        nil                                                 ; is system key?
+        nil)))                                              ; location
 
 (defn- dispatch-mouse-event! [browser {:keys [x y type modifiers click-count button delta-x delta-y]}]
-  (call #(-> (.getInput (tools browser))
-             (.dispatchMouseEvent
-               type
-               (double x)
-               (double y)
-               modifiers
-               nil                                          ; timestamp
-               button
-               (some-> click-count (int))
-               (some-> delta-x (double))
-               (some-> delta-y (double))))))
+  (-> (.getInput (tools browser))
+      (.dispatchMouseEvent
+        type
+        (double x)
+        (double y)
+        modifiers
+        nil                                          ; timestamp
+        button
+        (some-> click-count (int))
+        (some-> delta-x (double))
+        (some-> delta-y (double)))))
 
 (defn- resolve-aliases [xs]
   (map #(if (contains? aliases %) (with-meta (get aliases %) (meta %)) %) xs))

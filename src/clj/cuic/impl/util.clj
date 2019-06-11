@@ -1,7 +1,6 @@
 (ns cuic.impl.util
   (:require [clojure.tools.logging :refer [trace]]
             [cuic.impl.js-bridge :as js]
-            [cuic.impl.exception :refer [call]]
             [cuic.impl.browser :refer [tools]])
   (:import (java.util Base64)
            (java.awt.image BufferedImage)
@@ -39,29 +38,37 @@
 
 (defn was-really-clicked? [node]
   (loop [n 5]
-    (or (js/eval-in node "window.__cuic_clicks.has(this)")
+    (or (try (js/eval-in node "window.__cuic_clicks.has(this)") (catch Exception _ false))
+        (try (js/eval (:browser node) "window.__cuic_clicks.size === 0") (catch Exception _ false))
         (and (pos? n)
              (do (Thread/sleep 50)
                  (recur (dec n)))))))
 
 (defn clear-clicks! [browser]
-  (js/eval browser "window.__cuic_clicks.clear() && null"))
+  (try
+    (js/eval browser "window.__cuic_clicks.clear() && null")
+    (catch Exception _)))
 
-(defn bbox-center [node]
-  (let [{:keys [top left width height]} (bounding-box node)]
-    {:x (+ left (/ width 2))
-     :y (+ top (/ height 2))}))
+(defn bbox-center [{:keys [top left width height]}]
+  {:x (+ left (/ width 2))
+   :y (+ top (/ height 2))})
+
+(defn bbox-visible? [{:keys [width height]}]
+  (and (number? width)
+       (number? height)
+       (pos? width)
+       (pos? height)))
 
 (defn decode-base64 [^String data]
   (let [d (Base64/getDecoder)]
     (.decode d data)))
 
 (defn scaled-screenshot [browser]
-  (let [im  (-> (call #(.captureScreenshot (.getPage (tools browser)) nil nil nil true))
+  (let [im  (-> (.captureScreenshot (.getPage (tools browser)) nil nil nil true)
                 (decode-base64)
                 (ByteArrayInputStream.)
                 (ImageIO/read))
-        vps (-> (call #(.getLayoutMetrics (.getPage (tools browser))))
+        vps (-> (.getLayoutMetrics (.getPage (tools browser)))
                 (.getLayoutViewport))
         rx  (.getClientWidth vps)
         ry  (.getClientHeight vps)

@@ -2,7 +2,7 @@ package cuic;
 
 import clojure.lang.Keyword;
 
-public class ExecutionException extends RuntimeException {
+public class ExecutionException extends CuicException {
   private final boolean retryable;
   private final Keyword type;
 

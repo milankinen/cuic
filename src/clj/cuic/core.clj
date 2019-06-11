@@ -93,20 +93,6 @@ config options are:
   {:pre [(pos? ms)]}
   (Thread/sleep ms))
 
-(defn launch! ^{:doc (str "Launches a Chrome browser instance by using the given options. "
-                          "Uses the following defaults:\n```\n"
-                          browser/opt-defaults-str
-                          "```")}
-([opts]
- (assert (s/valid? browser/opts-spec opts))
- (browser/launch! (merge browser/opts-defaults opts)))
-  ([] (launch! {:headless true})))
-
-(defn close!
-  "Closes the given resource"
-  [^Closeable resource]
-  (.close resource))
-
 (defmacro wait
   "Evaluates the given expression and returns the value if it is truthy,
    otherwise pauses execution for a moment and re-tries to evaluate the

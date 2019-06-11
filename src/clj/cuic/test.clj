@@ -124,8 +124,27 @@
            :doc     "Root directory for saved snapshots from `matches-snapshot?`"} *snapshot-dir*
   "test/__snapshots__")
 
+(defmacro deftest*
+  "Macro that works like `deftest` from `clojure.test`. It also surrounds
+   the test body with try-catch block which captures all thrown CUIC exceptions
+   and failed `is*` assertions and tries to take a screenshot from the current
+   browser window for further inspection."
+  [name & body]
+  `(t/deftest ~name
+     (try
+       ~@body
+       (catch AbortTestError ex#
+         (debug ex# "Test aborted due to failed assertion")
+         (__cuic-internal-try-take-screenshot__))
+       (catch CuicException ex#
+         (t/do-report {:type     :error
+                       :message  nil
+                       :expected nil
+                       :actual   ex#})
+         (__cuic-internal-try-take-screenshot__)))))
+
 (defmacro is*
-  "Assertion macro that works like (is ...) from clojure.test except two differences:
+  "Assertion macro that works like `is` from `clojure.test` with two differences:
 
     * If asserted form returns non-truthy value it will automatically be retried
       until truthy value is received or timeout exceeds (implicit `c/wait`)

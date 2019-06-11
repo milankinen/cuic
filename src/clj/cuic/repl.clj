@@ -1,6 +1,7 @@
 (ns cuic.repl
   (:require [clojure.pprint :refer [pprint]]
             [cuic.core :as c]
+            [cuic.browser :refer [launch!]]
             [cuic.impl.dom-node :refer [node?]]
             [cuic.impl.js-bridge :as js]
             [cuic.impl.browser :as browser]))
@@ -13,14 +14,19 @@
   (alter-var-root #'c/*browser* (constantly browser))
   nil)
 
-(defn swap-config!
-  "Forcefully updates the default configurations with the given function."
-  [f & args]
-  (println "Forcefully changing the default configuration. I hope you know what you're doing... ;-)")
-  (apply alter-var-root (concat [#'c/*config* f] args))
-  (println "*** New config ***")
-  (pprint c/*config*)
-  nil)
+(defn set-typing-speed!
+  "Sets the new default typing speed for REPL"
+  [new-speed]
+  {:pre [(or (integer? new-speed)
+             (contains? #{:slow :normal :fast :tycitys} new-speed))]}
+  (alter-var-root #'c/*typing-speed* (constantly new-speed)))
+
+(defn set-timeout!
+  "Sets the new default wait timeout for REPL"
+  [new-timeout]
+  {:pre [(and (integer? new-timeout)
+              (pos? new-timeout))]}
+  (alter-var-root #'c/*timeout* (constantly new-timeout)))
 
 (def default-launch-opts
   {:headless             false
@@ -34,13 +40,13 @@
       (.getNetwork)
       (.setCacheDisabled true)))
 
-(defn launch-as-default!
+(defn launch-dev-browser!
   "Launches a new (visible) browser and sets it to the default browser."
   ([opts]
-   (doto (c/launch! (merge default-launch-opts opts))
+   (doto (launch! (merge default-launch-opts opts))
      (disable-cache!)
      (set-browser!)))
-  ([] (launch-as-default! {})))
+  ([] (launch-dev-browser! {})))
 
 (defn inspect
   "Logs the given DOM nodes to then opened browser's console"

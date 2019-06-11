@@ -4,10 +4,10 @@
   :license {:name "MIT"
             :url  "https://opensource.org/licenses/MIT"}
   :signing {:gpg-key "9DD8C3E9"}
-  :dependencies [[org.clojure/tools.logging "0.4.1"]
+  :dependencies [[org.clojure/tools.logging "0.5.0-alpha.1"]
                  [org.clojure/data.json "0.2.6"]
-                 [com.github.kklisura.cdt/cdt-java-client "1.3.3"]
-                 [org.jsoup/jsoup "1.11.3"]]
+                 [com.github.kklisura.cdt/cdt-java-client "1.3.4"]
+                 [org.jsoup/jsoup "1.12.1"]]
   :source-paths ["src/clj"]
   :java-source-paths ["src/java"]
   :resource-paths ["resources"]
@@ -16,7 +16,7 @@
                                   [http-kit "2.3.0"]
                                   [compojure "1.6.1"]
                                   [ch.qos.logback/logback-classic "1.2.3"]
-                                  [eftest "0.5.4"]]
+                                  [eftest "0.5.8"]]
                    :plugins      [[lein-ancient "0.6.15"]]}}
   :deploy-repositories [["releases" :clojars]]
   :aliases {"test"    ["trampoline" "run" "-m" "test-runner/run-tests-cli"]

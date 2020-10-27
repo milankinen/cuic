@@ -1,4 +1,4 @@
-(ns cuic.internal.node
+(ns ^:no-doc cuic.internal.node
   (:require [cuic.internal.cdt :refer [invoke ex-code]]
             [clojure.string :as string])
   (:import (java.io Writer)

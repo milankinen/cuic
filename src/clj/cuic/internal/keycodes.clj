@@ -1,4 +1,4 @@
-(ns cuic.internal.keycodes)
+(ns ^:no-doc cuic.internal.keycodes)
 
 (set! *warn-on-reflection* true)
 

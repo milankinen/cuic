@@ -1,4 +1,4 @@
-(ns cuic.internal.runtime
+(ns ^:no-doc cuic.internal.runtime
   (:require [clojure.string :as string]
             [clojure.java.io :as io]
             [cuic.internal.node :refer [node? get-object-id get-node-cdt]]

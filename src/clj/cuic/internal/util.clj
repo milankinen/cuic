@@ -1,4 +1,4 @@
-(ns cuic.internal.util
+(ns ^:no-doc cuic.internal.util
   (:import (java.util Base64)
            (java.net MalformedURLException URI URISyntaxException)
            (cuic CuicException TimeoutException)

@@ -1,4 +1,4 @@
-(ns cuic.internal.input
+(ns ^:no-doc cuic.internal.input
   (:require [clojure.string :as string]
             [cuic.internal.cdt :refer [invoke]]
             [cuic.internal.keycodes :refer [keycode-mapping]]

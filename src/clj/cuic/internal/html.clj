@@ -1,4 +1,4 @@
-(ns cuic.internal.html
+(ns ^:no-doc cuic.internal.html
   (:require [clojure.string :as string])
   (:import (org.jsoup Jsoup)
            (org.jsoup.nodes Document Attributes Attribute Comment Element TextNode XmlDeclaration DataNode)))

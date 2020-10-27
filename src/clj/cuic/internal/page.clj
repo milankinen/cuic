@@ -1,4 +1,4 @@
-(ns cuic.internal.page
+(ns ^:no-doc cuic.internal.page
   (:require [cuic.internal.cdt :refer [invoke on off cdt-promise]]
             [cuic.internal.util :refer [cuic-ex]])
   (:import (java.lang AutoCloseable)))

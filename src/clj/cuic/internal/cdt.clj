@@ -1,4 +1,4 @@
-(ns cuic.internal.cdt
+(ns ^:no-doc cuic.internal.cdt
   (:require [clojure.data.json :as json]
             [clojure.tools.logging :refer [info error]]
             [gniazdo.core :as ws])

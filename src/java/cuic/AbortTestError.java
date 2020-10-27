@@ -1,7 +1,14 @@
 package cuic;
 
 public class AbortTestError extends Error {
-  public AbortTestError() {
-    super("Test aborted due to failed assertion");
+  private final Object details;
+
+  public AbortTestError(Object details) {
+    super("Test aborted");
+    this.details = details;
+  }
+
+  public Object getDetails() {
+    return details;
   }
 }

@@ -1,336 +1,593 @@
 (ns cuic.core
-  (:refer-clojure :exclude [eval])
+  (:refer-clojure :exclude [find type])
   (:require [clojure.string :as string]
-            [clojure.set :refer [difference]]
-            [cuic.impl.browser :as browser]
-            [cuic.impl.dom-node :refer [node-id->node node->node-id document?]]
-            [cuic.impl.exception :as ex]
-            [cuic.impl.retry :as retry]
-            [cuic.impl.html :as html]
-            [cuic.impl.js-bridge :as js]
-            [cuic.impl.input :as input]
-            [cuic.impl.util :as util]
-            [cuic.util :refer [run mutation one at-most-one one-visible]])
-  (:import (com.github.kklisura.cdt.services ChromeDevToolsService)
-           (java.io File)
-           (com.github.kklisura.cdt.protocol.commands DOM)))
+            [cuic.chrome :refer [chrome? devtools page]]
+            [cuic.internal.cdt :refer [invoke]]
+            [cuic.internal.node :refer [wrap-node
+                                        node?
+                                        maybe-node?
+                                        stale-as-nil
+                                        stale-as-ex
+                                        get-node-id
+                                        get-node-name
+                                        get-node-cdt
+                                        rename]]
+            [cuic.internal.page :refer [navigate-to
+                                        navigate-forward
+                                        navigate-back]]
+            [cuic.internal.runtime :refer [get-window
+                                           window?
+                                           exec-js-code
+                                           scroll-into-view-if-needed]]
+            [cuic.internal.input :refer [mouse-move
+                                         mouse-click
+                                         type-kb
+                                         press-key-down
+                                         press-key-up]]
+            [cuic.internal.html :refer [parse-document parse-element]]
+            [cuic.internal.util :refer [rewrite-exceptions
+                                        cuic-ex
+                                        timeout-ex
+                                        check-arg
+                                        quoted
+                                        decode-base64
+                                        url-str?]])
+  (:import (java.io File)
+           (cuic TimeoutException)))
 
-;; Global options
+(set! *warn-on-reflection* true)
 
-(defonce ^{:dynamic true
-           :doc     "Current browser instance that is used to perform queries
-                     and mutation. This **must** be set with `clojure.core/binding`
-                     before anything can be done."} *browser*
+;;;
+;;; config
+;;;
+
+(defn- -chars-per-minute [speed]
+  (check-arg [#(or (contains? #{:slow :normal :fast :very-fast :tycitys} %)
+                   (pos-int? %))
+              "positive integer or one of #{:slow :normal :fast :tycitys}"]
+             [speed "typing speed"])
+  (case speed
+    :slow 300
+    :normal 600
+    :fast 1200
+    :very-fast 2400
+    :tycitys 12000
+    speed))
+
+(def ^:dynamic *browser*
   nil)
 
-(defonce ^{:dynamic true
-           :doc     "Timeout in millisecond after `wait` stops retrying
-                     and throws a `cuic.WaitTimeoutException`"} *timeout*
-  10000)
+(def ^:dynamic *timeout*
+  5000)
 
-(defonce ^{:dynamic true
-           :doc     "Defines the simulated keyboard typing speed. Can be one of the
-                     predefined defaults `#{:slow :normal :fast :tycitys}` or custom
-                     integer indicating strokes per second (e.g. `50` = 50
-                     strokes/sec)"} *typing-speed*
+(def ^:dynamic *typing-speed*
   :normal)
 
-(defonce ^{:dynamic true
-           :doc     "Experimental feature flags. Use with caution!"} *experimental-features*
-  {:click-check false})
+(def ^:dynamic *query-scope*
+  nil)
 
-;; General
+(defn set-browser! [browser]
+  (rewrite-exceptions
+    (check-arg [chrome? "chrome instance"] [browser "value"])
+    (alter-var-root #'*browser* (constantly browser))))
 
-(defn browser
-  "Returns the current browser instance."
-  ([] (or *browser* (throw (IllegalStateException. "No browser set! Did you forget to call `use-browser`?")))))
+(defn set-timeout! [timeout]
+  (rewrite-exceptions
+    (check-arg [nat-int? "positive integer or zero"] [timeout "timeout"])
+    (alter-var-root #'*timeout* (constantly timeout))))
 
-(defn dev-tools
-  "Escape hatch for underlying Chrome dev tools service"
-  [] ^ChromeDevToolsService (some-> *browser* (browser/tools)))
+(defn set-typing-speed! [speed]
+  (rewrite-exceptions
+    (-chars-per-minute speed)
+    (alter-var-root #'*typing-speed* (constantly speed))))
 
-(defn sleep
-  "Holds the execution the given milliseconds"
-  [ms]
-  {:pre [(pos? ms)]}
+;;;
+;;; misc
+;;;
+
+(defn sleep [ms]
+  {:pre [(nat-int? ms)]}
   (Thread/sleep ms))
 
 (defmacro wait
-  "Evaluates the given expression and returns the value if it is truthy,
-   otherwise pauses execution for a moment and re-tries to evaluate the
-   expression. Continues this until thruthy value or timeout exception
-   occurs."
-  [expr]
-  `(retry/loop* #(do ~expr) '~expr *timeout*))
+  ([expr] `(wait ~expr cuic.core/*timeout*))
+  ([expr timeout]
+   `(let [timeout# ~timeout
+          start-t# (System/currentTimeMillis)]
+      (check-arg [nat-int? "positive integer or zero"] [timeout# "timeout"])
+      (loop []
+        (or ~expr
+            (if (>= (- (System/currentTimeMillis) start-t#) timeout#)
+              (throw (timeout-ex "Timeout exceeded while waiting for truthy"
+                                 "value from expression:" ~(pr-str expr)))
+              (recur)))))))
 
-;; Queries
+(defmacro in [scope & body]
+  `(rewrite-exceptions
+     (let [root-node# ~scope]
+       (check-arg [node? "dom node"] [root-node# "scope root"])
+       (binding [*query-scope* root-node#])
+       ~@body)))
 
-(defn- -DOM
-  ([] ^DOM (.getDOM (dev-tools)))
-  ([node] ^DOM (.getDOM (browser/tools (:browser node)))))
+(defn as [node name]
+  (rewrite-exceptions
+    (check-arg [string? "string"] [name "node name"])
+    (check-arg [node? "dom node"] [node "renamed node"])
+    (rename node name)))
+
+;;;
+;;; core queries
+;;;
+
+(defn- -require-default-browser []
+  (or *browser* (throw (cuic-ex "Default browser not set"))))
+
+(defn window
+  ([] (rewrite-exceptions (window (-require-default-browser))))
+  ([browser]
+   (rewrite-exceptions
+     (check-arg [chrome? "chrome instance"] [browser "given browser"])
+     (get-window (devtools browser)))))
 
 (defn document
-  "Returns the root document node or nil if document is not available"
-  []
-  (run (some-> (.getDocument (-DOM))
-               (.getNodeId)
-               (node-id->node :document (browser)))))
+  ([] (rewrite-exceptions (document (-require-default-browser))))
+  ([browser]
+   (rewrite-exceptions
+     (check-arg [chrome? "chrome instance"] [browser "given browser"])
+     (let [cdt (devtools browser)
+           res (invoke {:cdt  cdt
+                        :cmd  "DOM.getDocument"
+                        :args {:depth 0}})
+           doc (wrap-node cdt (:root res) nil "document" nil)]
+       (when (nil? doc)
+         (throw (cuic-ex "Cound not get page document")))
+       (vary-meta doc assoc ::document? true)))))
 
-(defn q
-  "Performs a CSS query to the subtree of the given root node and returns a
-   vector of matched nodes. If called without the root node, page document node
-   is used as a root node for the query."
-  ([parent ^String selector]
-   {:pre [(string? selector)]}
-   (when-let [n (at-most-one parent)]
-     (run (->> (.querySelectorAll (-DOM n) (node->node-id n) selector)
-               (map #(node-id->node % :element (:browser n)))
-               (seq)))))
-  ([^String selector]
-   (q (document) selector)))
+(defn active-element
+  ([] (rewrite-exceptions (active-element (-require-default-browser))))
+  ([browser]
+   (rewrite-exceptions
+     (stale-as-ex (cuic-ex "Couldn't get active element")
+       (check-arg [chrome? "chrome instance"] [browser "given browser"])
+       (let [cdt (devtools browser)
+             res (invoke {:cdt  cdt
+                          :cmd  "Runtime.evaluate"
+                          :args {:expression "document.activeElement"}})
+             obj (:result res)]
+         (when obj
+           (let [node (invoke {:cdt cdt :cmd "DOM.requestNode" :args obj})]
+             (wrap-node cdt node nil (:description obj) nil))))))))
 
-(defn eval
-  "Evaluate JavaScript expression in the global JS context. Return value of the
-   expression is converted into Clojure data structure. Supports async
-   expressions (await keyword) and promises."
-  [^String js-code]
-  (run (js/eval (browser) js-code)))
+(defn find [selector]
+  (rewrite-exceptions
+    (check-arg [#(or (string? %) (map? %)) "string or map"] [selector "selector"])
+    (loop [selector selector]
+      (if (map? selector)
+        (let [{:keys [from by as timeout]
+               :or   {from    (or *query-scope* (document))
+                      timeout *timeout*}} selector
+              _ (check-arg [node? "node"] [from "from scope"])
+              _ (check-arg [string? "string"] [by "selector"])
+              _ (check-arg [#(or (string? %) (nil? %)) "string"] [as "alias"])
+              _ (check-arg [nat-int? "positive integer or zero"] [timeout "timeout"])
+              cdt (devtools (-require-default-browser))
+              ctx-id (or (stale-as-nil (get-node-id from))
+                         (throw (cuic-ex "Could not find node" (quoted (or as by)) "because"
+                                         "context node" (quoted (get-node-name from)) "does not"
+                                         "exist anymore")))
+              start-t (System/currentTimeMillis)]
+          (loop []
+            (let [result (invoke {:cdt  cdt
+                                  :cmd  "DOM.querySelectorAll"
+                                  :args {:nodeId ctx-id :selector by}})
+                  node-ids (:nodeIds result)
+                  n-nodes (count node-ids)
+                  elapsed (- (System/currentTimeMillis) start-t)]
+              (case n-nodes
+                0 (if (< elapsed timeout)
+                    (do (sleep (min 100 (- *timeout* elapsed)))
+                        (recur))
+                    (throw (cuic-ex "Could not find node" (quoted as) "from"
+                                    (quoted (get-node-name from)) "with selector"
+                                    (quoted by) "in" timeout "milliseconds")))
+                1 (or (stale-as-nil (wrap-node cdt {:nodeId (first node-ids)} from as by))
+                      (recur))
+                (throw (cuic-ex "Found too many" (str "(" n-nodes ")") (quoted as)
+                                "nodes from" (quoted (get-node-name from))
+                                "with selector" (quoted by)))))))
+        (recur {:by selector})))))
 
-(defn eval-in [node ^String js-code]
-  "Evaluates JavaScript expression in the given node context so that JS `this`
-   points to the given node. Return value of the expression is converted into
-   Clojure data structure. Supports async expressions (await keyword)."
-  (run (js/eval-in (one node) js-code)))
+(defn query [selector]
+  (rewrite-exceptions
+    (check-arg [#(or (string? %) (map? %)) "string or map"] [selector "selector"])
+    (loop [selector selector]
+      (if (map? selector)
+        (let [{:keys [from by as]
+               :or   {from (or *query-scope* (document))}} selector
+              _ (check-arg [node? "node"] [from "from scope"])
+              _ (check-arg [string? "string"] [by "selector"])
+              _ (check-arg [string? "string"] [as "alias"])
+              cdt (devtools (-require-default-browser))
+              ctx-id (or (stale-as-nil (get-node-id from))
+                         (throw (cuic-ex "Could not query" (quoted as) "nodes with selector"
+                                         (quoted by) "because context node" (quoted (get-node-name from))
+                                         "does not exist anymore")))]
+          (->> (invoke {:cdt  cdt
+                        :cmd  "DOM.querySelectorAll"
+                        :args {:nodeId ctx-id :selector by}})
+               (:nodeIds)
+               (keep #(stale-as-nil (wrap-node cdt {:nodeId %} from as by)))
+               (vec)
+               (doall)
+               (not-empty)))
+        (recur {:by selector})))))
 
+;;;
+;;; js code execution
+;;;
 
-(defn visible?
-  "Returns boolean whether the given DOM node is visible in DOM or not"
-  [node]
-  (run (js/eval-in (at-most-one node) "!!this.offsetParent")))
+(defn- -exec-js [code args this]
+  (let [cdt (if this
+              (get-node-cdt this)
+              (devtools (-require-default-browser)))
+        result (exec-js-code {:cdt     cdt
+                              :code    code
+                              :args    args
+                              :context this})]
+    (if-let [error (:error result)]
+      (throw (cuic-ex (str "JavaScript error occurred:\n\n" error)))
+      (:return result))))
 
-(defn rect
-  "Returns a bounding client rect for the given node"
-  [node]
-  (run (util/bounding-box (at-most-one node))))
+(defn eval-js
+  ([expr]
+   (rewrite-exceptions (eval-js expr {} (window))))
+  ([expr args]
+   (rewrite-exceptions (eval-js expr args (window))))
+  ([expr args this]
+   (rewrite-exceptions
+     (check-arg [string? "string"] [expr "expression"])
+     (check-arg [map? "map"] [args "call arguments"])
+     (check-arg [#(or (node? %) (window? %)) "node or window"] [this "this binding"])
+     (stale-as-ex (cuic-ex "Can't evaluate JavaScript expression on" (quoted this)
+                           "because node does not exist anymore")
+       (-exec-js (str "return " expr ";") args this)))))
 
-(defn value
-  "Returns the current value of the given input element."
-  [input-node]
-  (run (js/eval-in (at-most-one input-node) "this.value")))
+(defn exec-js
+  ([code]
+   (rewrite-exceptions (exec-js code {} nil)))
+  ([code args]
+   (rewrite-exceptions (exec-js code args nil)))
+  ([code args this]
+   (rewrite-exceptions
+     (check-arg [string? "string"] [code "code"])
+     (check-arg [map? "map"] [args "call arguments"])
+     (check-arg [#(or (node? %) (window? %)) "node or window"] [this "this binding"])
+     (stale-as-ex (cuic-ex "Can't execute JavaScript code on" (quoted this)
+                           "because node does not exist anymore")
+       (-exec-js code args this)))))
 
-(defn options
-  "Returns a list of options `{:keys [value text selected]}` for the given HTML
-   select element."
-  [select-node]
-  (run (js/eval-in (at-most-one select-node) "Array.prototype.slice.call(this.options).map(function(o){return{value:o.value,text:o.text,selected:o.selected};})")))
+;;;
+;;; properties
+;;;
 
-(defn outer-html
-  "Returns the outer html of the given node in clojure.data.xml format
-  (node is a map of {:keys [tag attrs content]})"
-  [node]
-  (when-let [n (at-most-one node)]
-    (-> (run (.getOuterHTML (-DOM n) (node->node-id n) nil nil))
-        (html/parse (document? n)))))
+(defn- -prop-ex [node desc]
+  (cuic-ex "Can't resolve" desc "from node" (quoted node)
+           "because node does not exist anumore"))
 
-(defn text-content
-  "Returns the raw text content of the given DOM node."
-  [node]
-  (when-let [n (at-most-one node)]
-    (if (document? n)
-      (text-content (first (q n "body")))
-      (run (js/eval-in n "this.textContent")))))
+(defn- -js-prop
+  ([node js-expr] (-js-prop node js-expr {}))
+  ([node js-expr args]
+   (let [code (str "return " (string/replace js-expr #"\n\s+" "") ";")]
+     (-exec-js code args node))))
 
-(defn inner-text
-  "Returns the inner text of the given DOM node"
-  [node]
-  (when-let [n (at-most-one node)]
-    (if (document? n)
-      (inner-text (first (q n "body")))
-      (js/eval-in n "this.innerText"))))
+(defn -bb [node]
+  (-exec-js "let r = this.getBoundingClientRect();
+             return {
+               top: r.top,
+               left: r.left,
+               width: r.width,
+               height: r.height
+             };" {} node))
 
-(defn attrs
-  "Returns a map of attributes and their values for the given DOM node"
-  [node]
-  (when-let [n (at-most-one node)]
-    (run (->> (.getAttributes (-DOM n) (node->node-id n))
-              (partition 2 2)
-              (map (fn [[k v]] [(keyword k) v]))
-              (into {})))))
+(defn client-rect [node]
+  (rewrite-exceptions
+    (check-arg [maybe-node? "dom node"] [node "node"])
+    (stale-as-ex (-prop-ex node "node visibility")
+      (-bb node))))
 
-(defn classes
-  "Returns a set of CSS classes for the given DOM node"
-  [node]
-  (when-let [attributes (attrs node)]
-    (as-> attributes $
+(defn visible? [node]
+  (rewrite-exceptions
+    (check-arg [maybe-node? "dom node"] [node "node"])
+    (stale-as-ex (-prop-ex node "node visibility")
+      (-js-prop node "!!this.offsetParent"))))
+
+(defn inner-text [node]
+  (rewrite-exceptions
+    (check-arg [maybe-node? "dom node"] [node "node"])
+    (stale-as-ex (-prop-ex node "inner text")
+      (-js-prop node "this.innerText"))))
+
+(defn text-content [node]
+  (rewrite-exceptions
+    (check-arg [maybe-node? "dom node"] [node "node"])
+    (stale-as-ex (-prop-ex node "text content")
+      (-js-prop node "this.textContent"))))
+
+(defn outer-html [node]
+  (rewrite-exceptions
+    (check-arg [maybe-node? "dom node"] [node "node"])
+    (stale-as-ex (-prop-ex node "outer html")
+      (let [cdt (get-node-cdt node)
+            node-id (get-node-id node)
+            html (-> (invoke {:cdt  cdt
+                              :cmd  "DOM.getOuterHtml"
+                              :args {:nodeId node-id}})
+                     (:outerHtml))]
+        (if (::document? (meta node))
+          (parse-document html)
+          (parse-element html))))))
+
+(defn value [node]
+  (rewrite-exceptions
+    (check-arg [maybe-node? "dom node"] [node "node"])
+    (stale-as-ex (-prop-ex node "value")
+      (-js-prop node "this.value"))))
+
+(defn options [node]
+  (rewrite-exceptions
+    (check-arg [maybe-node? "dom node"] [node "node"])
+    (stale-as-ex (-prop-ex node "options")
+      (-js-prop node "Array.prototype.slice
+                      .call(this.options || [])
+                      .map(({value, text, selected}) => ({ value, text, selected }))"))))
+
+(defn attrs [node]
+  (rewrite-exceptions
+    (check-arg [maybe-node? "dom node"] [node "node"])
+    (stale-as-ex (-prop-ex node "attributes")
+      (let [cdt (get-node-cdt node)]
+        (->> (invoke {:cdt  cdt
+                      :cmd  "DOM.getAttributes"
+                      :args {:nodeId (get-node-id node)}})
+             (:attributes)
+             (partition-all 2 2)
+             (map (fn [[k v]] [(keyword k) v]))
+             (into {}))))))
+
+(defn classes [node]
+  (rewrite-exceptions
+    (check-arg [maybe-node? "dom node"] [node "node"])
+    (as-> (attrs node) $
           (get $ :class "")
           (string/split $ #"\s+")
           (map string/trim $)
           (remove string/blank? $)
           (set $))))
 
-(defn term-freqs
-  "Returns a number of occurrences per term in the given node's inner text"
-  [node]
-  (when-let [text (inner-text node)]
-    (->> (string/split text #"[\n\s\t]+")
-         (map string/trim)
-         (remove string/blank?)
-         (group-by identity)
-         (map (fn [[t v]] [t (count v)]))
-         (into {}))))
+(defn has-class? [node class]
+  (rewrite-exceptions
+    (check-arg [maybe-node? "dom node"] [node "node"])
+    (check-arg [string? "string"] [class "tested class name"])
+    (contains? (classes node) class)))
 
-(defn has-class?
-  "Returns boolean whether the given DOM node has the given class or not"
-  [node ^String class]
-  (some-> (classes node) (contains? class)))
+(defn matches? [node selector]
+  (rewrite-exceptions
+    (check-arg [maybe-node? "dom node"] [node "node"])
+    (check-arg [string? "string"] [selector "tested css selector"])
+    (stale-as-ex (cuic-ex "Can't match css selector to node" (quoted node)
+                          "because node does not exist anumore")
+      (boolean (-js-prop node "(function(n){try{return n.matches(s)}catch(_){}})(this)" {:s selector})))))
 
-(defn matches?
-  "Returns boolean whether the given node matches the given CSS selector or not."
-  [node ^String selector]
-  (run (js/exec-in (at-most-one node) "try {return this.matches(sel);}catch(e){return false;}" ["sel" selector])))
+(defn has-focus? [node]
+  (rewrite-exceptions
+    (check-arg [maybe-node? "dom node"] [node "node"])
+    (stale-as-ex (-prop-ex node "focus")
+      (-js-prop node "document.activeElement === this"))))
 
-(defn active?
-  "Returns boolean whether the given node is active (focused) or not"
-  [node]
-  (run (js/eval-in (at-most-one node) "document.activeElement === this")))
+(defn checked? [node]
+  (rewrite-exceptions
+    (check-arg [maybe-node? "dom node"] [node "node"])
+    (stale-as-ex (-prop-ex node "checked status")
+      (-js-prop node "!!this.checked"))))
 
-(defn checked?
-  "Returns boolean whether the given radio button / checkbox is checked or not"
-  [node]
-  (run (js/eval-in (at-most-one node) "!!this.checked")))
+(defn disabled? [node]
+  (rewrite-exceptions
+    (check-arg [maybe-node? "dom node"] [node "node"])
+    (stale-as-ex (-prop-ex node "disabled status")
+      (-js-prop node "!!this.disabled"))))
 
-(defn disabled?
-  "Returns boolean whether the given input / select / button is disabled or not"
-  [node]
-  (run (js/eval-in (at-most-one node) "!!this.disabled")))
+;;;
+;;; actions
+;;;
 
-(defn running-tasks
-  "Returns a list of currently running browser tasks. Currently only in-flight
-   HTTP requests are supported."
-  []
-  (browser/tasks (browser)))
+(defn- -action-ex [node action]
+  (cuic-ex "Can't" action "node" (quoted (get-node-name node))
+           "because node does not exist anymore"))
+
+(defn- -not-visible-ex [node action]
+  (cuic-ex "Can't" action "node" (quoted (get-node-name node))
+           "because node is not visible"))
+
+(defn- -ensure-visible [node action]
+  (try
+    (wait (-js-prop node "!!this.offsetParent"))
+    (catch TimeoutException _
+      (throw (-not-visible-ex node action)))))
+
+(defn- -select-all-text [node]
+  (-exec-js "try{this.focus();this.setSelectionRange(0,this.value.length)}catch(_){}" {} node))
+
+(defn goto
+  ([url]
+   (rewrite-exceptions (goto url *timeout*)))
+  ([url timeout]
+   (rewrite-exceptions
+     (check-arg [url-str? "valid url string"] [url "url"])
+     (check-arg [nat-int? "positive integer or zero"] [timeout "timeout"])
+     (navigate-to (page (-require-default-browser)) url timeout)
+     nil)))
+
+(defn go-back
+  ([] (go-back *timeout*))
+  ([timeout]
+   (rewrite-exceptions
+     (check-arg [nat-int? "positive integer or zero"] [timeout "timeout"])
+     (navigate-back (page (-require-default-browser)) timeout)
+     nil)))
+
+(defn go-forward
+  ([] (go-forward *timeout*))
+  ([timeout]
+   (rewrite-exceptions
+     (check-arg [nat-int? "positive integer or zero"] [timeout "timeout"])
+     (navigate-forward (page (-require-default-browser)) timeout)
+     nil)))
+
+(defn type
+  ([input] (type input *typing-speed*))
+  ([input speed]
+   (rewrite-exceptions
+     (check-arg [#(or (string? %) (simple-symbol? %)) "string or keycode symbol"] [input "typed input"])
+     (let [cdt (devtools (-require-default-browser))]
+       (type-kb cdt (if (symbol? input) [input] input) (-chars-per-minute speed))
+       nil))))
+
+(defn keydown [keycode]
+  (rewrite-exceptions
+    (check-arg [simple-keyword? "string"] [keycode "keycode"])
+    (let [cdt (devtools (-require-default-browser))]
+      (press-key-down cdt keycode))))
+
+(defn keyup [keycode]
+  (rewrite-exceptions
+    (check-arg [simple-keyword? "string"] [keycode "keycode"])
+    (let [cdt (devtools (-require-default-browser))]
+      (press-key-up cdt keycode))))
+
+(defn scroll-into-view [node]
+  (rewrite-exceptions
+    (check-arg [maybe-node? "dom node"] [node "target node"])
+    (stale-as-ex (cuic-ex "Can't scroll node" (quoted (get-node-name node))
+                          "into view because node does not exist anymore")
+      (-ensure-visible node "scroll to")
+      (scroll-into-view-if-needed node)
+      node)))
+
+(defn hover [node]
+  (rewrite-exceptions
+    (check-arg [maybe-node? "dom node"] [node "hover target"])
+    (stale-as-ex (-action-ex node "hover over")
+      (-ensure-visible node "hover over")
+      (scroll-into-view-if-needed node)
+      (let [{:keys [top left width height]} (-bb node)
+            cdt (get-node-cdt node)
+            x (+ left (/ width 2))
+            y (+ top (/ height 2))]
+        (when (or (zero? width)
+                  (zero? height))
+          (throw (cuic-ex "Node" (quoted (get-node-name node))
+                          "is not hoverable")))
+        (mouse-move cdt {:x x :y y})
+        node))))
+
+(defn click [node]
+  (rewrite-exceptions
+    (check-arg [maybe-node? "dom node"] [node "clicked node"])
+    (stale-as-ex (-action-ex node "click")
+      (-ensure-visible node "click")
+      (scroll-into-view-if-needed node)
+      (let [{:keys [top left width height]} (-bb node)
+            cdt (get-node-cdt node)
+            x (+ left (/ width 2))
+            y (+ top (/ height 2))]
+        (when (or (zero? width)
+                  (zero? height))
+          (throw (cuic-ex "Node" (quoted (get-node-name node))
+                          "is not clickable")))
+        (mouse-move cdt {:x x :y y})
+        (mouse-click cdt {:x x :y y :button :left})
+        node))))
+
+(defn focus [node]
+  (rewrite-exceptions
+    (check-arg [maybe-node? "dom node"] [node "focused node"])
+    (stale-as-ex (-action-ex node "focus on")
+      (-ensure-visible node "focus on")
+      (scroll-into-view-if-needed node)
+      (let [cdt (get-node-cdt node)]
+        (invoke {:cdt  cdt
+                 :cmd  "DOM.focus"
+                 :args {:nodeId (get-node-id node)}})
+        node))))
+
+(defn select-text [node]
+  (rewrite-exceptions
+    (check-arg [maybe-node? "dom node"] [node "select node"])
+    (stale-as-ex (-action-ex node "select text from")
+      (-ensure-visible node "select text from")
+      (scroll-into-view-if-needed node)
+      (-select-all-text node)
+      node)))
+
+(defn clear-text [node]
+  (rewrite-exceptions
+    (check-arg [maybe-node? "dom node"] [node "input node"])
+    (stale-as-ex (-action-ex node "clear text from")
+      (-ensure-visible node "clear text from")
+      (scroll-into-view-if-needed node)
+      (-select-all-text node)
+      (type-kb (get-node-cdt node) ['Backspace] 0)
+      node)))
+
+(defn fill
+  ([node text] (fill node text *typing-speed*))
+  ([node text speed]
+   (rewrite-exceptions
+     (check-arg [maybe-node? "dom node"] [node "input node"])
+     (check-arg [string? "string"] [text "typed text"])
+     (stale-as-ex (-action-ex node "fill")
+       (-ensure-visible node "fill")
+       (scroll-into-view-if-needed node)
+       (-select-all-text node)
+       (type 'Backspace)
+       (type text speed)
+       node))))
+
+(defn add-files [node & files]
+  (rewrite-exceptions
+    (check-arg [maybe-node? "dom node"] [node "input node"])
+    (doseq [file files]
+      (check-arg [#(instance? File %) "file instance"] [file "file"])
+      (when-not (.exists ^File file)
+        (throw (cuic-ex "File does not exist:" (.getName ^File file)))))
+    (stale-as-ex (-action-ex node "add files to")
+      (-ensure-visible node "add files to")
+      (scroll-into-view-if-needed node)
+      (when (seq files)
+        (let [cdt (get-node-cdt node)]
+          (invoke {:cdt  cdt
+                   :cmd  "DOM.setFileInputFiles"
+                   :args {:nodeId (get-node-id node)
+                          :files  (mapv #(.getAbsolutePath ^File %) files)}})
+          node)))))
 
 (defn screenshot
-  "Takes a screen capture from the given DOM node and returns a BufferedImage
-   instance containing the screenshot. DOM node must be visible or otherwise
-   an exception is thrown.
-
-   If no DOM node is given, takes screenshot from the entire page."
-  ([node]
-    ; for some reason, Chrome's "clip" option in .captureScreenshot does not match the
-    ; bounding box rect of the node so we need to do it manually here in JVM...
-   (run (let [n (one-visible node)]
-          (util/scroll-into-view! n)
-          (let [{:keys [left top width height]} (util/bounding-box n)]
-            (-> (util/scaled-screenshot (:browser n))
-                (util/crop left top width height)))))))
-
-
-;; Mutations
-
-(defn goto!
-  "Navigates the page to the given URL."
-  [url]
-  (mutation (.navigate (.getPage (dev-tools)) url)))
-
-(defn scroll-to!
-  "Scrolls window to the given DOM node if that node is not already visible
-   in the current viewport"
-  [node]
-  (mutation (util/scroll-into-view! (one-visible node))))
-
-(defn click!
-  "Clicks the given DOM element."
-  [node]
-  (mutation
-    (let [n  (one-visible node)
-          bb (rect n)]
-      (util/clear-clicks! n)
-      (if-not (util/bbox-visible? bb)
-        (throw (ex/retryable-ex "Node is visible but has zero width and/or height")))
-      (util/scroll-into-view! n)
-      (input/mouse-click! (:browser n) (util/bbox-center bb))
-      (if (:click-check *experimental-features*)
-        (util/was-really-clicked? n)
-        true))))
-
-(defn hover!
-  "Hover mouse over the given DOM element."
-  [node]
-  (mutation
-    (let [n  (one-visible node)
-          bb (rect n)]
-      (if-not (util/bbox-visible? bb)
-        (throw (ex/retryable-ex "Node is visible but has zero width and/or height")))
-      (util/scroll-into-view! n)
-      (input/mouse-move! (:browser n) (util/bbox-center bb)))
-    true))
-
-(defn focus!
-  "Focus on the given DOM element."
-  [node]
-  (mutation
-    (let [n (one-visible node)]
-      (util/scroll-into-view! n)
-      (.focus (-DOM n) (node->node-id n) nil nil))
-    true))
-
-(defn select-text!
-  "Selects all text from the given input DOM element. If element is
-   not active, it is activated first by clicking it."
-  [input-node]
-  (mutation
-    (let [n (one-visible input-node)]
-      (if-not (active? n) (click! n))
-      (js/exec-in n "try{var len = this.value.length; this.setSelectionRange(0,len); return len;}catch(e){}"))
-    true))
-
-(defn type!
-  "Types text to the given input element. If element is not active,
-   it is activated first by clicking it."
-  [input-node & keys]
-  (mutation
-    (let [n (one-visible input-node)]
-      (if-not (active? n) (click! n))
-      (input/type! (:browser n) (vec keys) *typing-speed*)
-      (value n))))
-
-(defn clear-text!
-  "Clears all text from the given input DOM element by selecting all
-   text and pressing backspace. If element is not active, it is
-   activated first by clicking it."
-  [input-node]
-  (select-text! input-node)
-  (type! input-node :backspace))
-
-(defn select!
-  "Selects the given value (or values if multiselect) to the given select node"
-  [select-node & values]
-  {:pre [(every? string? values)]}
-  (mutation
-    (js/exec-in (one-visible select-node) "
-       if (this.nodeName.toLowerCase() !== 'select') throw new Error('Not a select node');
-       var opts = Array.prototype.slice.call(this.options);
-       for(var i = 0; i < opts.length; i++) {
-         var o = opts[i];
-         if ((o.selected = vals.includes(o.value)) && !this.multiple) {
-           break;
-         }
-       }
-       this.dispatchEvent(new Event('input', {bubbles: true}));
-       this.dispatchEvent(new Event('change', {bubbles: true}));
-     " ["vals" (vec values)])
-    (count values)))
-
-(defn upload!
-  "Sets the file(s) to the given input node. All files must instances of
-   class `java.io.File`."
-  [input-node & files]
-  {:pre [(seq files)
-         (every? #(instance? File %) files)]}
-  (mutation
-    (let [node  (one-visible input-node)
-          paths (->> (map (fn [f#] (.getAbsolutePath f#)) files)
-                     (apply list))]
-      (.setFileInputFiles (-DOM node) paths (node->node-id node) nil nil)
-      (count paths))))
+  ([] (rewrite-exceptions (screenshot {})))
+  ([{:keys [format
+            quality
+            timeout]
+     :or   {format  :png
+            quality 50
+            timeout *timeout*}}]
+   (rewrite-exceptions
+     (check-arg [#{:jpeg :png} "either :jgep or :png"] [format "format"])
+     (check-arg [#(and (integer? %) (<= 0 % 100)) "between 0 and 100"] [quality "quality"])
+     (check-arg [nat-int? "positive integer or zero"] [timeout "timeout"])
+     (let [cdt (devtools (-require-default-browser))
+           res (invoke {:cdt     cdt
+                        :cmd     "Page.captureScreenshot"
+                        :args    {:format      (name format)
+                                  :quality     quality
+                                  :fromSurface true}
+                        :timeout timeout})]
+       (decode-base64 (:data res))))))

@@ -10,9 +10,6 @@
       <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level %-10contextName %logger{36} - %msg%n</pattern>
     </encoder>
   </appender>
-  <logger name="com.github.kklisura.cdt" level="warn" additivity="false">
-    <appender-ref ref="CONSOLE"/>
-  </logger>
   <logger name="cuic" level="trace" additivity="false">
     <appender-ref ref="LOG"/>
   </logger>

@@ -1,187 +1,104 @@
 (ns cuic.test
-  (:require [clojure.test :as t]
-            [clojure.pprint :refer [pprint]]
+  (:require [clojure.test :refer [deftest is assert-expr do-report testing-contexts-str]]
             [clojure.string :as string]
-            [clojure.walk :refer [postwalk]]
-            [clojure.tools.logging :refer [debug]]
             [clojure.java.io :as io]
-            [clojure.edn :as edn]
-            [cuic.core :refer [wait *browser*]]
-            [cuic.impl.screenshot :refer [try-take-screenshot!]]
-            [cuic.impl.exception :as ex])
-  (:import (java.io File)
-           (cuic WaitTimeoutException AbortTestError CuicException)))
+            [cuic.core :as c]
+            [cuic.chrome :as chrome])
+  (:import (cuic AbortTestError TimeoutException)))
 
-(declare matches-snapshot?)
-(declare ^:dynamic *screenshot-dir*)
-(declare ^:dynamic *snapshot-dir*)
+(set! *warn-on-reflection* true)
 
-(defn- sorted-map-keys [x]
-  (postwalk #(if (map? %) (into (sorted-map) %) %) x))
+(defonce ^:dynamic *in-cuic-test* nil)
 
-(defn- snapshots-root-dir ^File []
-  (io/file *snapshot-dir*))
+(defonce ^:private eventually
+  (gensym (str 'cuic.test/is-eventually-)))
 
-(defn- sanitize-filename [filename]
-  (-> filename
-      (string/replace #"-" "_")
-      (string/replace #"[^\w.]+" "")))
-
-(defn- snapshot-filename [id]
-  (sanitize-filename (name id)))
-
-(defn- snapshot-dir [id]
-  (loop [[d & ds] (filter seq (string/split (or (namespace id) "") #"\."))
-         dir (snapshots-root-dir)]
-    (if d (recur ds (io/file dir (sanitize-filename d))) dir)))
-
-(defn expected-file [id ext]
-  (io/file (snapshot-dir id) (str (snapshot-filename id) ".expected." ext)))
-
-(defn actual-file [id ext]
-  (io/file (snapshot-dir id) (str (snapshot-filename id) ".actual." ext)))
-
-(defn read-edn [^File f]
-  (if (.exists f)
-    (edn/read-string (slurp f))))
-
-(defn- ensure-snapshot-dir! [id]
-  (let [dir    (snapshot-dir id)
-        ignore (io/file (snapshots-root-dir) ".gitignore")]
-    (when-not (.exists dir)
-      (.mkdirs dir))
-    (when-not (.exists ignore)
-      (spit ignore "*.actual*\n"))))
-
-(defn- test-snapshot [id actual predicate read write! ext]
-  (ensure-snapshot-dir! id)
-  (let [e-file   (expected-file id ext)
-        a-file   (actual-file id ext)
-        expected (read e-file)]
-    (if (.exists e-file)
-      (if-not (predicate expected actual)
-        (do (write! (io/file a-file) actual)
-            false)
-        (do (if (.exists a-file) (.delete a-file))
-            true))
-      (do (write! e-file actual)
-          (println " > Snapshot written : " (.getAbsolutePath e-file))
-          true))))
-
-(defn __cuic-internal-try-take-screenshot__ []
-  (when (and *browser*
-             *screenshot-dir*)
-    (try-take-screenshot! *browser* *screenshot-dir*)))
-
-
-(defn __cuic-internal-assert-snapshot__ [msg [_ id actual]]
-  `(let [id#       (do ~id)
-         actual#   (do ~actual)
-         expected# (read-edn (expected-file id# "edn"))
-         result#   (matches-snapshot? id# actual#)]
-     (if result#
-       (t/do-report
-         {:type     :pass
-          :message  ~msg
-          :expected '(~'matches-snapshot? ~id ~actual)
-          :actual   (cons '~'= [expected# actual#])})
-       (t/do-report
-         {:type     :fail
-          :message  ~msg
-          :expected (cons '~'= [expected# actual#])
-          :actual   (list '~'not (cons '~'= [expected# actual#]))}))
-     result#))
-
-
-(defmethod t/assert-expr '__cuic-internal-assert-retryable__ [_ [_ tested-form]]
-  `(let [report# (atom nil)
-         result# (with-redefs [t/do-report #(reset! report# %)]
+(defmethod assert-expr eventually [msg [_ form]]
+  `(let [last-report# (atom nil)
+         result# (with-redefs [do-report #(reset! last-report# %)]
                    (try
-                     {:value (wait ~(t/assert-expr nil tested-form))}
-                     (catch WaitTimeoutException e#
-                       (swap! report# #(or % {:type     :fail
-                                              :message  nil
-                                              :expected '~tested-form
-                                              :actual   (list '~'not '~tested-form)}))
-                       {:error e#})
+                     {:value (c/wait ~(assert-expr msg form))}
+                     (catch TimeoutException e#
+                       (swap! last-report# #(or % {:type     :fail
+                                                   :message  nil
+                                                   :expected '~form
+                                                   :actual   (list '~'not '~form)}))
+                       {:abort true})
                      (catch Throwable t#
-                       (reset! report# {:type     :error
-                                        :message  nil
-                                        :expected '~tested-form
-                                        :actual   t#})
-                       {:error t#})))]
-     (some-> @report# (t/do-report))
+                       (reset! last-report# {:type     :error
+                                             :message  nil
+                                             :expected '~form
+                                             :actual   t#})
+                       {:abort true})))]
+     (some-> @last-report# (do-report))
      result#))
 
-;; Public API
+;;;;
 
-(defonce ^{:dynamic true
-           :doc     "Root directory where screenshots will be saved on failed tests.
-                     Set this to `nil` in order to disable screenshots."} *screenshot-dir*
-  "target/__screenshots__")
+(def ^:dynamic *screenshot-dir* "target/screenshots")
+(def ^:dynamic *screenshot-options* {:format :png})
 
-(defonce ^{:dynamic true
-           :doc     "Root directory for saved snapshots from `matches-snapshot?`"} *snapshot-dir*
-  "test/__snapshots__")
+(defn -try-take-screenshot [test-name ^AbortTestError err]
+  (try
+    (when c/*browser*
+      (let [data (c/screenshot)
+            dir (doto (io/file *screenshot-dir*)
+                  (.mkdirs))]
+        (loop [base (-> (str (string/replace test-name #"\." "\\$")
+                             "$$" (:context (.getDetails err)))
+                        (string/lower-case)
+                        (string/replace #"\s+" "-")
+                        (string/replace #"[^a-z\-_0-9$]" ""))
+               i 0]
+          (let [n (str base (when (pos? i) "-" i) "." (name (:format *screenshot-options*)))
+                f (io/file dir n)]
+            (if-not (.exists f)
+              (do (io/copy data f)
+                  (do-report {:type     ::screenshot-taken
+                              :filename (.getAbsolutePath f)}))
+              (recur base (inc i)))))))
+    (catch Exception ex
+      (do-report {:type  ::screenshot-failed
+                  :cause ex}))))
 
-(defmacro deftest*
-  "Macro that works like `deftest` from `clojure.test`. It also surrounds
-   the test body with try-catch block which captures all thrown CUIC exceptions
-   and failed `is*` assertions and tries to take a screenshot from the current
-   browser window for further inspection."
-  [name & body]
-  `(t/deftest ~name
+(defn set-screenshot-dir! [dir]
+  {:pre [(string? dir)]}
+  (alter-var-root #'*screenshot-dir* (constantly dir)))
+
+(defn set-screenshot-options! [opts]
+  {:pre [(map? opts)]}
+  (alter-var-root #'*screenshot-options* (constantly opts)))
+
+(defmacro deftest* [name & body]
+  `(deftest ~name
      (try
-       ~@body
-       (catch AbortTestError ex#
-         (debug ex# "Test aborted due to failed assertion")
-         (__cuic-internal-try-take-screenshot__))
-       (catch CuicException ex#
-         (t/do-report {:type     :error
-                       :message  nil
-                       :expected nil
-                       :actual   ex#})
-         (__cuic-internal-try-take-screenshot__)))))
+       (binding [*in-cuic-test* true]
+         ~@body)
+       (catch AbortTestError e#
+         (do-report {:type ::test-aborted
+                     :test ~(symbol (str *ns*) (str name))
+                     :form (:form (.getDetails e#))})
+         (-try-take-screenshot ~(str *ns* "$$" name) e#)
+         nil))))
 
 (defmacro is*
-  "Assertion macro that works like `is` from `clojure.test` with two differences:
-
-    * If asserted form returns non-truthy value it will automatically be retried
-      until truthy value is received or timeout exceeds (implicit `c/wait`)
-    * If assertion fails or errors is throw from the assertion,
-      `cuic.AbortTestError` is throw, indicating that test should be aborted
-      immediately without evaluating any further steps.
-
-   Normally you should pair this macro with CUIC's `deftest*` to get screenshot from
-   the failed page and to suppress extra errors caused by default `clojure.test` test
-   reporter."
   [form]
-  `(let [res# (t/is (~'__cuic-internal-assert-retryable__ ~form))]
-     (if (some? (:error res#))
-       (throw (ex/abort-test-ex))
-       (:value res#))))
+  `(do (when-not *in-cuic-test*
+         (throw (AssertionError. "cuic.test/is* can't be used outside of cuic.test/deftest*")))
+       (let [res# (is (~eventually ~form))]
+         (when (:abort res#)
+           (let [details# {:form '~form :context (testing-contexts-str)}]
+             (throw (AbortTestError. details#))))
+         (:value res#))))
 
-(defn matches-snapshot?
-  "Tries to match the given actual data to the snapshot associated to the
-   given id (keyword). If snapshot does not exist, this function creates it.
-   All data that can be serialized with `pr-str` can be tested with snapshot
-   testing.
-
-   **Hint:** Use fully qualified keyword to distinguish snapshots from different
-   test namespaces. You can also share same snapshots by using same id."
-  [snapshot-id actual]
-  {:pre [(keyword? snapshot-id)]}
-  (let [predicate #(= %1 %2)
-        read      read-edn
-        write!    #(spit (io/file %1) (with-out-str (pprint (sorted-map-keys %2))))]
-    (test-snapshot snapshot-id actual predicate read write! "edn")))
-
-;
-; Custom assertion expressions for cleaner test reporting for snapshot failures.
-;
-
-(defmethod t/assert-expr 'matches-snapshot? [msg form]
-  (__cuic-internal-assert-snapshot__ msg form))
-
-(defmethod t/assert-expr `matches-snapshot? [msg form]
-  (__cuic-internal-assert-snapshot__ msg form))
+(defn browser-test-fixture
+  ([] (browser-test-fixture {}))
+  ([{:keys [headless options]
+     :or   {headless (not= "false" (System/getProperty "cuic.headless"))
+            options  {}}}]
+   {:pre [(boolean? headless)
+          (map? options)]}
+   (fn browser-test-fixture* [t]
+     (with-open [chrome (chrome/launch (assoc options :headless headless))]
+       (binding [c/*browser* chrome]
+         (t))))))

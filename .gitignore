@@ -9,4 +9,6 @@ pom.xml.asc
 .nrepl-port
 /.idea
 *.iml
-/resources/js_deps/node_modules
+/src/js/node_modules
+/src/js/build
+.DS_Store

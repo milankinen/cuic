@@ -1,0 +1,24 @@
+name: Run tests
+on: push
+jobs:
+  build-and-test:
+    name: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v2-beta
+        with:
+          node-version: "12"
+          check-latest: true
+      - uses: actions/setup-java@v1
+        with:
+          java-version: "11"
+      - uses: DeLaGuardo/setup-clojure@master
+        with:
+          lein: 2.9.4
+      - uses: actions/checkout@v2
+      - name: Install dependencies
+        run: lein deps
+      - name: Build JS runtime
+        run: lein build-js
+      - name: Run tests
+        run: lein t

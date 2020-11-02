@@ -83,13 +83,13 @@
     (type-char cdt key-or-char)))
 
 (defn type-kb [cdt input chars-per-minute]
-  (let [delay (/ 60000 chars-per-minute)]
-    (when (seq input)
-      (loop [[x & xs] input]
-        (type-one cdt x)
-        (when xs
-          (Thread/sleep delay)
-          (recur xs))))))
+  (when (seq input)
+    (loop [[x & xs] input]
+      (type-one cdt x)
+      (when xs
+        (when (pos-int? chars-per-minute)
+          (Thread/sleep (/ 60000 chars-per-minute)))
+        (recur xs)))))
 
 (defn press-key-down [cdt key]
   ; get-key-mapping throws exception if keycode is not valid

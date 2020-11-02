@@ -133,8 +133,8 @@
 (defn get-node-name [node]
   {:pre [(node? node)]}
   (or (:display-name node)
-      (try (resolve-tag node) (catch Exception _))
-      (:selector node)))
+      (:selector node)
+      (try (resolve-tag node) (catch Exception _))))
 
 (defn rename [node name]
   {:pre [(node? node)]}

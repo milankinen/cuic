@@ -400,22 +400,17 @@
 ;;; actions
 ;;;
 
-(defn- -action-ex [node action]
-  (cuic-ex "Can't" action "node" (quoted (get-node-name node))
-           "because node does not exist anymore"))
-
-(defn- -not-visible-ex [node action]
-  (cuic-ex "Can't" action "node" (quoted (get-node-name node))
-           "because node is not visible"))
-
-(defn- -ensure-visible [node action]
+(defn- -wait-visible [node]
   (try
     (wait (-js-prop node "!!this.offsetParent"))
     (catch TimeoutException _
-      (throw (-not-visible-ex node action)))))
+      false)))
 
-(defn- -select-all-text [node]
-  (-exec-js "try{this.focus();this.setSelectionRange(0,this.value.length)}catch(_){}" {} node))
+(defn- -wait-enabled [node]
+  (try
+    (wait (-js-prop node "!this.disabled"))
+    (catch TimeoutException _
+      false)))
 
 (defn goto
   ([url]
@@ -469,15 +464,20 @@
     (check-arg [maybe-node? "dom node"] [node "target node"])
     (stale-as-ex (cuic-ex "Can't scroll node" (quoted (get-node-name node))
                           "into view because node does not exist anymore")
-      (-ensure-visible node "scroll to")
+      (when-not (-wait-visible node)
+        (throw (cuic-ex "Can't scroll node" (quoted (get-node-name node))
+                        "into view because node is not visible")))
       (scroll-into-view-if-needed node)
       node)))
 
 (defn hover [node]
   (rewrite-exceptions
     (check-arg [maybe-node? "dom node"] [node "hover target"])
-    (stale-as-ex (-action-ex node "hover over")
-      (-ensure-visible node "hover over")
+    (stale-as-ex (cuic-ex "Can't hover over node" (quoted (get-node-name node))
+                          "because node does not exist anymore")
+      (when-not (-wait-visible node)
+        (throw (cuic-ex "Can't hover over node" (quoted (get-node-name node))
+                        "because node is not visible")))
       (scroll-into-view-if-needed node)
       (let [{:keys [top left width height]} (-bb node)
             cdt (get-node-cdt node)
@@ -493,9 +493,15 @@
 (defn click [node]
   (rewrite-exceptions
     (check-arg [maybe-node? "dom node"] [node "clicked node"])
-    (stale-as-ex (-action-ex node "click")
-      (-ensure-visible node "click")
+    (stale-as-ex (cuic-ex "Can't click node" (quoted (get-node-name node))
+                          "because node does not exist anymore")
+      (when-not (-wait-visible node)
+        (throw (cuic-ex "Can't click node" (quoted (get-node-name node))
+                        "because node is not visible")))
       (scroll-into-view-if-needed node)
+      (when-not (-wait-enabled node)
+        (throw (cuic-ex "Can't click node" (quoted (get-node-name node))
+                        "because node is disabled")))
       (let [{:keys [top left width height]} (-bb node)
             cdt (get-node-cdt node)
             x (+ left (/ width 2))
@@ -511,9 +517,15 @@
 (defn focus [node]
   (rewrite-exceptions
     (check-arg [maybe-node? "dom node"] [node "focused node"])
-    (stale-as-ex (-action-ex node "focus on")
-      (-ensure-visible node "focus on")
+    (stale-as-ex (cuic-ex "Can't focus on node" (quoted (get-node-name node))
+                          "because node does not exist anymore")
+      (when-not (-wait-visible node)
+        (throw (cuic-ex "Can't focus on node" (quoted (get-node-name node))
+                        "because node is not visible")))
       (scroll-into-view-if-needed node)
+      (when-not (-wait-enabled node)
+        (throw (cuic-ex "Can't focus on node" (quoted (get-node-name node))
+                        "because node is disabled")))
       (let [cdt (get-node-cdt node)]
         (invoke {:cdt  cdt
                  :cmd  "DOM.focus"
@@ -522,20 +534,32 @@
 
 (defn select-text [node]
   (rewrite-exceptions
-    (check-arg [maybe-node? "dom node"] [node "select node"])
-    (stale-as-ex (-action-ex node "select text from")
-      (-ensure-visible node "select text from")
+    (check-arg [maybe-node? "dom node"] [node "selected node"])
+    (stale-as-ex (cuic-ex "Can't select text from node" (quoted (get-node-name node))
+                          "because node does not exist anymore")
+      (when-not (-wait-visible node)
+        (throw (cuic-ex "Can't select text from node" (quoted (get-node-name node))
+                        "because node is not visible")))
       (scroll-into-view-if-needed node)
-      (-select-all-text node)
+      (when-not (-wait-enabled node)
+        (throw (cuic-ex "Can't select text from node" (quoted (get-node-name node))
+                        "because node is disabled")))
+      (-exec-js "this.select()" {} node)
       node)))
 
 (defn clear-text [node]
   (rewrite-exceptions
-    (check-arg [maybe-node? "dom node"] [node "input node"])
-    (stale-as-ex (-action-ex node "clear text from")
-      (-ensure-visible node "clear text from")
+    (check-arg [maybe-node? "dom node"] [node "cleared node"])
+    (stale-as-ex (cuic-ex "Can't clear text from node" (quoted (get-node-name node))
+                          "because node does not exist anymore")
+      (when-not (-wait-visible node)
+        (throw (cuic-ex "Can't clear text from node" (quoted (get-node-name node))
+                        "because node is not visible")))
       (scroll-into-view-if-needed node)
-      (-select-all-text node)
+      (when-not (-wait-enabled node)
+        (throw (cuic-ex "Can't clear text from node" (quoted (get-node-name node))
+                        "because node is disabled")))
+      (-exec-js "this.select()" {} node)
       (type-kb (get-node-cdt node) ['Backspace] 0)
       node)))
 
@@ -543,12 +567,18 @@
   ([node text] (fill node text *typing-speed*))
   ([node text speed]
    (rewrite-exceptions
-     (check-arg [maybe-node? "dom node"] [node "input node"])
+     (check-arg [maybe-node? "dom node"] [node "filled node"])
      (check-arg [string? "string"] [text "typed text"])
-     (stale-as-ex (-action-ex node "fill")
-       (-ensure-visible node "fill")
+     (stale-as-ex (cuic-ex "Can't fill node" (quoted (get-node-name node))
+                           "because node does not exist anymore")
+       (when-not (-wait-visible node)
+         (throw (cuic-ex "Can't fill node" (quoted (get-node-name node))
+                         "because node is not visible")))
        (scroll-into-view-if-needed node)
-       (-select-all-text node)
+       (when-not (-wait-enabled node)
+         (throw (cuic-ex "Can't fill node" (quoted (get-node-name node))
+                         "because node is disabled")))
+       (-exec-js "this.select()" {} node)
        (type 'Backspace)
        (type text speed)
        node))))
@@ -560,9 +590,15 @@
       (check-arg [#(instance? File %) "file instance"] [file "file"])
       (when-not (.exists ^File file)
         (throw (cuic-ex "File does not exist:" (.getName ^File file)))))
-    (stale-as-ex (-action-ex node "add files to")
-      (-ensure-visible node "add files to")
+    (stale-as-ex (cuic-ex "Can't add files to node" (quoted (get-node-name node))
+                          "because node does not exist anymore")
+      (when-not (-wait-visible node)
+        (throw (cuic-ex "Can't add files to node" (quoted (get-node-name node))
+                        "because node is not visible")))
       (scroll-into-view-if-needed node)
+      (when-not (-wait-enabled node)
+        (throw (cuic-ex "Can't add files to node" (quoted (get-node-name node))
+                        "because node is disabled")))
       (when (seq files)
         (let [cdt (get-node-cdt node)]
           (invoke {:cdt  cdt

@@ -1,4 +1,4 @@
-# <img src="kuikka.png" align="left" width="60" height="60"> CUIC
+# <img src="kuikka.svg" align="left" width="60" height="60"> CUIC
 
 Concise UI testing with Clojure
 

@@ -583,6 +583,34 @@
        (type text speed)
        node))))
 
+(defn choose
+  [node & options]
+  (rewrite-exceptions
+    (check-arg [node? "dom node"] [node "updated node"])
+    (check-arg [#(every? string? %) "strings"] [options "selected options"])
+    (stale-as-ex (cuic-ex "Can't choose options from node" (quoted node)
+                          "because node does not exist anymore")
+      (when-not (-wait-visible node)
+        (throw (cuic-ex "Can't choose options from node" (quoted (get-node-name node))
+                        "because node is not visible")))
+      (scroll-into-view-if-needed node)
+      (when-not (-wait-enabled node)
+        (throw (cuic-ex "Can't choose options from node" (quoted (get-node-name node))
+                        "because node is disabled")))
+      (-exec-js "
+        if (this.nodeName.toLowerCase() !== 'select') throw new Error('Not a select node');
+        console.log(vals)
+        for (let o of this.options) {
+          console.log(o)
+          if ((o.selected = vals.includes(o.value)) && !this.multiple) {
+            break;
+          }
+        }
+        this.dispatchEvent(new Event('input', {bubbles: true}));
+        this.dispatchEvent(new Event('change', {bubbles: true}));
+        " {:vals options} node)
+      nil)))
+
 (defn add-files [node & files]
   (rewrite-exceptions
     (check-arg [maybe-node? "dom node"] [node "input node"])

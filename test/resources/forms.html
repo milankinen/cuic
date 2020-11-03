@@ -6,45 +6,114 @@
 </head>
 <body>
 
-<div>
+<style>
+  body {
+    margin: 20px;
+  }
+
+  section {
+    margin-bottom: 20px;
+  }
+</style>
+
+<script type="text/javascript">
+  window.$ = document.querySelector.bind(document)
+  window.$.onready = f => window.addEventListener("DOMContentLoaded", f)
+</script>
+
+<section>
   <select id="select">
     <option value="f" selected>Foo</option>
     <option value="b">Bar</option>
     <option value="t">Tsers</option>
   </select>
-</div>
-<div>
+  <div></div>
+  <script type="text/javascript">
+    $.onready(() => {
+      const select = $("#select")
+      const text = $("#select + div")
+      const selection = () =>
+        [...select.options]
+          .filter(o => o.selected)
+          .map(o => o.text)
+          .join(", ") || "-"
+      text.innerText = "Selection: " + selection()
+      select.addEventListener("change", e => {
+        text.innerText = "Selection: " + selection()
+      })
+    })
+  </script>
+</section>
+
+<section>
   <select multiple id="multiselect">
     <option value="f">Foo</option>
     <option value="b">Bar</option>
     <option value="t">Tsers</option>
   </select>
-</div>
+  <div></div>
+  <script type="text/javascript">
+    $.onready(() => {
+      const select = $("#multiselect")
+      const text = $("#multiselect + div")
+      const selection = () =>
+        [...select.options]
+          .filter(o => o.selected)
+          .map(o => o.text)
+          .join(", ") || "-"
+      text.innerText = "Multiselection: " + selection()
+      select.addEventListener("change", e => {
+        text.innerText = "Multiselection: " + selection()
+      })
+    })
+  </script>
+</section>
 
-<div>
-  <input type="text" value="lolbal"/>
-</div>
-<div>
-  <textarea style="width: 200px; height: 200px;">Tsers!</textarea>
-</div>
+<section>
+  <input id="input" type="text" value="lolbal"/>
+  <div></div>
+  <script type="text/javascript">
+    $.onready(() => {
+      const input = $("#input")
+      const text = $("#input + div")
+      text.innerText = "Input value is: " + (input.value || "")
+      input.addEventListener("input", e => {
+        text.innerText = "Input value is: " + (e.target.value || "")
+      })
+    })
+  </script>
+</section>
 
-<div>
+<section>
+  <textarea id="textarea" style="width: 200px; height: 200px;">Tsers!</textarea>
+  <div></div>
+  <script type="text/javascript">
+    $.onready(() => {
+      const textarea = $("#textarea")
+      const text = $("#textarea + div")
+      text.innerText = "Textarea value is: " + (textarea.value || "")
+      textarea.addEventListener("input", e => {
+        text.innerText = "Textarea value is: " + (e.target.value || "")
+      })
+    })
+  </script>
+</section>
+
+<section>
   <input name="rad" type="radio" gr value="a"> Radio A
   <input name="rad" type="radio" value="b"> Radio B
-</div>
+</section>
 
-<div>
+<section>
   <input type="checkbox"> Check
-</div>
+</section>
 
-<div id="lazy">
+<section id="lazy">
   <button onclick="setTimeout(function() { document.querySelector('#lazy input').removeAttribute('hidden') }, 1000)">
     Activate
   </button>
-  <input hidden value="" />
-</div>
-
-<p id="fail">tsers?</p>
+  <input hidden value=""/>
+</section>
 
 </body>
 </html>

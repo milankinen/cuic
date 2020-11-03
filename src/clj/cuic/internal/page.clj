@@ -102,9 +102,8 @@
         op #(invoke {:cdt  cdt
                      :cmd  "Page.navigateToHistoryEntry"
                      :args {:entryId (:id entry)}})]
-    (when-not entry
-      (throw (cuic-ex "Can't go back")))
-    (navigate page op timeout)))
+    (when entry
+      (navigate page op timeout))))
 
 (defn navigate-forward [{:keys [cdt] :as page} timeout]
   {:pre [(page? page)
@@ -118,6 +117,5 @@
         op #(invoke {:cdt  cdt
                      :cmd  "Page.navigateToHistoryEntry"
                      :args {:entryId (:id entry)}})]
-    (when-not entry
-      (throw (cuic-ex "Can't go forward")))
-    (navigate page op timeout)))
+    (when entry
+      (navigate page op timeout))))

@@ -20,6 +20,7 @@
                 "\n * " (string/join "\n * " (sort (keys keycode-mapping))))))
 
 (defn- get-key-mapping [code]
+  (println (pr-str code))
   (or (get keycode-mapping code)
       (throw (invalid-keycode-ex code))))
 
@@ -90,13 +91,3 @@
         (when (pos-int? chars-per-minute)
           (Thread/sleep (/ 60000 chars-per-minute)))
         (recur xs)))))
-
-(defn press-key-down [cdt key]
-  ; get-key-mapping throws exception if keycode is not valid
-  (get-key-mapping key)
-  (key-event cdt "keyDown" key))
-
-(defn press-key-up [cdt key]
-  ; get-key-mapping throws exception if keycode is not valid
-  (get-key-mapping key)
-  (key-event cdt "keyUp" key))

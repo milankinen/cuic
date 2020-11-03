@@ -11,10 +11,10 @@
 
 (def ^:private js-fn-template
   "async function(%s) {
-     return await (function() { %s }).call(this)
+     return await (async function() { %s }).call(this)
    }")
 
-(defn- get-window-object-id [cdt]
+(defn- get-window-object-id [{:keys [cdt]}]
   (-> (invoke {:cdt  cdt
                :cmd  "Runtime.evaluate"
                :args {:expression "window"}})
@@ -57,7 +57,7 @@
 
 ;;;
 
-(defrecord Window [cdt object-id])
+(defrecord Window [cdt])
 
 (defmethod print-method Window [_ writer]
   (.write ^Writer writer "#window {}"))
@@ -68,35 +68,38 @@
            :args {:source @runtime-js-src}}))
 
 (defn get-window [cdt]
-  (->Window cdt (get-object-id cdt)))
+  (->Window cdt))
 
 (defn window? [val]
   (instance? Window val))
 
 (defn exec-js-code
-  [{:keys [cdt
-           code
-           context
+  [{:keys [code
+           this
            args
            return-by-value]
     :or   {args            {}
            return-by-value true}}]
   {:pre [(string? code)
-         (or (window? context)
-             (node? context))]}
+         (or (window? this)
+             (node? this))]}
   (try
     (validate-args args)
     (let [sorted-args (sort-by first args)
           args-s (string/join ", " (map (comp name first) sorted-args))
+          cdt (if (node? this)
+                (get-node-cdt this)
+                (:cdt this))
+          object-id (if (node? this)
+                      (get-object-id this)
+                      (get-window-object-id this))
           result (invoke {:cdt  cdt
                           :cmd  "Runtime.callFunctionOn"
                           :args {:functionDeclaration (format js-fn-template args-s code)
                                  :awaitPromise        true
                                  :arguments           (mapv #(do {:value (second %)}) sorted-args)
                                  :returnByValue       return-by-value
-                                 :objectId            (if (node? context)
-                                                        (get-object-id context)
-                                                        (:object-id context))}})]
+                                 :objectId            object-id}})]
       (if-let [ex-details (:exceptionDetails result)]
         {:error (get-in ex-details [:exception :description])}
         {:return (get-in result [:result :value])}))
@@ -108,6 +111,5 @@
 
 (defn scroll-into-view-if-needed [node]
   {:pre [(node? node)]}
-  (exec-js-code {:cdt     (get-node-cdt node)
-                 :code    "return __CUIC__.scrollIntoView(this)"
-                 :context node}))
+  (exec-js-code {:code "return __CUIC__.scrollIntoView(this)"
+                 :this node}))

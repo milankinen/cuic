@@ -253,18 +253,18 @@
        (-exec-js (str "return " expr ";") args this)))))
 
 (defn exec-js
-  ([code]
-   (rewrite-exceptions (exec-js code {} nil)))
-  ([code args]
-   (rewrite-exceptions (exec-js code args nil)))
-  ([code args this]
+  ([body]
+   (rewrite-exceptions (exec-js body {} (window))))
+  ([body args]
+   (rewrite-exceptions (exec-js body args (window))))
+  ([body args this]
    (rewrite-exceptions
-     (check-arg [string? "string"] [code "code"])
+     (check-arg [string? "string"] [body "function body"])
      (check-arg [map? "map"] [args "call arguments"])
      (check-arg [#(or (node? %) (window? %)) "node or window"] [this "this binding"])
      (stale-as-ex (cuic-ex "Can't execute JavaScript code on" (quoted this)
-                           "because node does not exist anymore")
-       (-exec-js code args this)))))
+                           "because it does not exist anymore")
+       (-exec-js body args this)))))
 
 ;;;
 ;;; properties

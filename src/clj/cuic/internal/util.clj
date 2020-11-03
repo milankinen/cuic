@@ -51,5 +51,7 @@
        (catch DevtoolsProtocolException dpe#
          (throw (CuicException. "Chrome DevTools error occurred" dpe#))))
      (catch CuicException ce#
+       (when (= "true" (System/getProperty "cuic.exceptions.full_stacktrace"))
+         (throw ce#))
        (.setStackTrace ce# (into-array (next (seq (.getStackTrace (Exception.))))))
        (throw ce#))))

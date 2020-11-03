@@ -23,7 +23,8 @@
                     :plugins
                     [[lein-ancient "0.6.15"]
                      [lein-shell "0.5.0"]]}
-             :repl {:jvm-opts ["-Dcuic.headless=false"]}}
+             :repl {:jvm-opts ["-Dcuic.headless=false"
+                               "-Dcuic.exceptions.full_stacktrace=true"]}}
   :deploy-repositories [["releases" :clojars]]
   :aliases {"test"     ["trampoline" "run" "-m" "test-runner/run-tests-cli"]
             "build-js" ["shell" "./src/js/build.sh"]

@@ -22,6 +22,34 @@
 </script>
 
 <section>
+  <div id="context-1">
+    <span id="hello">Hello</span>
+  </div>
+  <div id="context-2">
+    <spam>world!</spam>
+  </div>
+</section>
+
+<section>
+  <button id="delayed-node-trigger">Add delayed node</button>
+  <script type="text/javascript">
+    $.onready(() => {
+      const trigger = $("#delayed-node-trigger")
+      trigger.addEventListener("click", () => {
+        setTimeout(() => {
+          if (!$("#delayed-node")) {
+            const node = document.createElement("h2")
+            node.setAttribute("id", "delayed-node")
+            node.innerText = "Delayed node added"
+            trigger.parentNode.append(node)
+          }
+        }, 500)
+      })
+    })
+  </script>
+</section>
+
+<section>
   <select id="select">
     <option value="f" selected>Foo</option>
     <option value="b">Bar</option>

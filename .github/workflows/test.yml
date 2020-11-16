@@ -22,3 +22,8 @@ jobs:
         run: lein build-js
       - name: Run tests
         run: lein t
+      - uses: actions/upload-artifact@v2
+        if: failure()
+        with:
+          name: logs
+          path: target/*.log

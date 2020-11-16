@@ -609,9 +609,9 @@
       (let [cdt (get-node-cdt node)
             node-id (get-node-id node)
             html (-> (invoke {:cdt  cdt
-                              :cmd  "DOM.getOuterHtml"
+                              :cmd  "DOM.getOuterHTML"
                               :args {:nodeId node-id}})
-                     (:outerHtml))]
+                     (:outerHTML))]
         (if (::document? (meta node))
           (parse-document html)
           (parse-element html))))))

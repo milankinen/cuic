@@ -1,13 +1,20 @@
 (ns cuic.core-query-tests
   (:require [clojure.test :refer :all]
+            [clojure.string :as string]
             [cuic.core :as c]
-            [cuic.test :refer [browser-test-fixture]]
-            [cuic.test-common :refer [forms-test-fixture]])
+            [cuic.test :refer [deftest* is*]]
+            [cuic.test-common :refer [multibrowser-fixture
+                                      forms-test-fixture
+                                      *secondary-chrome*
+                                      todos-url]])
   (:import (cuic CuicException)))
 
 (use-fixtures
   :once
-  (browser-test-fixture)
+  (multibrowser-fixture))
+
+(use-fixtures
+  :each
   (forms-test-fixture))
 
 (deftest find-tests
@@ -48,3 +55,46 @@
               #"Could not find node from \"Context\" with selector \"#hello\" in \d+ milliseconds"
               (c/in named-ctx-2 (c/find "#hello"))))))))
 
+(deftest query-tests
+  (testing "the found nodes are returned without waiting"
+    (is (some? (c/find "#delayed-node-trigger")))
+    (is (nil? (c/query "#delayed-node")))
+    (c/click (c/find "#delayed-node-trigger"))
+    (is (c/wait (= 1 (count (c/query "#delayed-node"))))))
+  (testing "multiple results are supported"
+    (is (vector? (c/query "#select option")))
+    (is (= 3 (count (c/query "#select option")))))
+  (testing "nodes can be named"
+    (is (= ["#node {:tag \"option\", :name \"Option\", :selector \"#select option\"}"
+            "#node {:tag \"option\", :name \"Option\", :selector \"#select option\"}"
+            "#node {:tag \"option\", :name \"Option\", :selector \"#select option\"}"]
+           (map pr-str (c/query {:by "#select option" :as "Option"})))))
+  (testing "querying under context node"
+    (let [ctx-1 (c/find "#context-1")
+          ctx-2 (c/find "#context-2")]
+      (is (vector? (c/query {:by "#hello" :from ctx-1})))
+      (is (vector? (c/in ctx-1 (c/query "#hello"))))
+      (is (nil? (c/query {:by "#hello" :from ctx-2})))
+      (is (nil? (c/in ctx-2 (c/query "#hello")))))))
+
+(deftest* document-tests
+  (c/goto todos-url {:browser *secondary-chrome*})
+  (testing "default browser is used by default"
+    (is* (= "Forms test" (c/eval-js "this.title" {} (c/document)))))
+  (testing "browser can be overrided"
+    (is* (= "TodoMVC" (c/eval-js "this.title" {} (c/document *secondary-chrome*))))))
+
+(deftest* window-tests
+  (c/goto todos-url {:browser *secondary-chrome*})
+  (testing "default browser is used by default"
+    (is* (-> (c/eval-js "this.location.href" {} (c/window))
+             (string/ends-with? "forms.html"))))
+  (testing "default browser is used by default"
+    (is* (-> (c/eval-js "this.location.href" {} (c/window *secondary-chrome*))
+             (string/ends-with? "todos.html")))))
+
+(deftest* active-element-tests
+  (c/goto todos-url)
+  (testing "currently active element is returned"
+    (c/click (c/find ".new-todo"))
+    (is* (= #{"new-todo"} (c/classes (c/active-element))))))

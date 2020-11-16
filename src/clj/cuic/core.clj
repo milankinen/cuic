@@ -265,7 +265,10 @@
                           :args {:expression "document.activeElement"}})
              obj (:result res)]
          (when obj
-           (let [node (invoke {:cdt cdt :cmd "DOM.requestNode" :args obj})]
+           (when-let [node (-> (invoke {:cdt  cdt
+                                        :cmd  "DOM.describeNode"
+                                        :args (select-keys obj [:objectId])})
+                               (:node))]
              (wrap-node cdt node nil (:description obj) nil))))))))
 
 (defn find

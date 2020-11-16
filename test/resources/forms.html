@@ -113,7 +113,8 @@
 </section>
 
 <section>
-  <textarea id="textarea" style="width: 200px; height: 200px;">Tsers!</textarea>
+  <button id="enable-textarea">Enable</button>
+  <textarea id="textarea" style="display:block;width: 200px; height: 200px;" disabled>Tsers!</textarea>
   <div></div>
   <script type="text/javascript">
     $.onready(() => {
@@ -122,6 +123,9 @@
       text.innerText = "Textarea value is: " + (textarea.value || "")
       textarea.addEventListener("input", e => {
         text.innerText = "Textarea value is: " + (e.target.value || "")
+      })
+      $("#enable-textarea").addEventListener("click", () => {
+        textarea.removeAttribute("disabled")
       })
     })
   </script>
@@ -133,7 +137,8 @@
 </section>
 
 <section>
-  <input type="checkbox"> Check
+  <div><input type="checkbox" id="unchecked"> Check me</div>
+  <div><input type="checkbox" id="checked" checked> Uncheck me</div>
 </section>
 
 <section id="lazy">
@@ -141,6 +146,24 @@
     Activate
   </button>
   <input hidden value=""/>
+</section>
+
+
+<section>
+  <button id="remove-input">Remove</button>
+  <input id="input-to-remove" value="..."/>
+  <div></div>
+  <script type="text/javascript">
+    $.onready(() => {
+      $("#remove-input").addEventListener("click", (event) => {
+        const input = $("#input-to-remove")
+        if (input) {
+          input.remove()
+        }
+        event.target.setAttribute("disabled", true)
+      })
+    })
+  </script>
 </section>
 
 </body>

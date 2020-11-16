@@ -23,7 +23,7 @@
             [cuic.internal.input :refer [mouse-move
                                          mouse-click
                                          type-kb]]
-            [cuic.internal.html :refer [parse-document parse-element]]
+            [cuic.internal.html :refer [parse-document parse-element boolean-attributes]]
             [cuic.internal.util :refer [rewrite-exceptions
                                         cuic-ex
                                         timeout-ex
@@ -644,7 +644,8 @@
 
 (defn attributes
   "Returns node's HTML attributes as a map of keyword keys and
-   string values.
+   string values. Boolean attribute values will be converted to
+   `true` if they are present
 
    ```clojure
    ;; html element <div id='foo' data-val='1' class='foo bar'></div>
@@ -665,7 +666,7 @@
                       :args {:nodeId (get-node-id node)}})
              (:attributes)
              (partition-all 2 2)
-             (map (fn [[k v]] [(keyword k) v]))
+             (map (fn [[k v]] [(keyword k) (if (contains? boolean-attributes k) true v)]))
              (into {}))))))
 
 (defn classes

@@ -5,10 +5,44 @@
 
 (set! *warn-on-reflection* true)
 
+(def boolean-attributes
+  #{"allowfullscreen"
+    "async"
+    "autofocus"
+    "checked"
+    "compact"
+    "declare"
+    "default"
+    "defer"
+    "disabled"
+    "formnovalidate"
+    "hidden"
+    "inert"
+    "ismap"
+    "itemscope"
+    "multiple"
+    "muted"
+    "nohref"
+    "noresize"
+    "noshade"
+    "novalidate"
+    "nowrap"
+    "open"
+    "readonly"
+    "required"
+    "reversed"
+    "seamless"
+    "selected"
+    "sortable"
+    "truespeed"
+    "typemustmatch"})
+
 (defmulti to-hiccup type)
 
 (defmethod to-hiccup Attribute [^Attribute a]
-  (.getValue a))
+  (if (contains? boolean-attributes (.getKey a))
+    true
+    (.getValue a)))
 
 (defmethod to-hiccup Attributes [^Attributes attrs]
   (->> (seq (.asList attrs))

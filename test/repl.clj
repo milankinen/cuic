@@ -1,7 +1,7 @@
 (ns repl
   (:require [cuic.core :as c]
             [cuic.chrome :as chrome]
-            [cuic.test-common :refer [forms-html-url]]))
+            [cuic.test-common :refer [forms-url todos-url]]))
 
 (comment
 
@@ -9,7 +9,8 @@
   (-> (chrome/launch {:headless false})
       (c/set-browser!))
 
-  (c/goto forms-html-url)
+  (c/goto forms-url)
+  (c/goto todos-url)
 
 
   -)

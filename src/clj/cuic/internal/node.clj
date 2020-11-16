@@ -12,32 +12,42 @@
                     "Node with given id does not belong to the document"}
                   (ex-message ex))))
 
-(defn- resolve-backend-node-id [cdt node-id]
+(defn- resolve-object-id [cdt {:keys [nodeId backendNodeId]}]
   (try
-    (-> (invoke {:cdt  cdt
-                 :cmd  "DOM.describeNode"
-                 :args {:nodeId node-id}})
-        (get-in [:node :backendNodeId]))
+    (when-let [args (cond
+                      backendNodeId {:backendNodeId backendNodeId}
+                      nodeId {:nodeId nodeId}
+                      :else nil)]
+      (-> (invoke {:cdt  cdt
+                   :cmd  "DOM.resolveNode"
+                   :args args})
+          (get-in [:object :objectId])))
     (catch Exception ex
       (if (stale-node? ex)
         (throw (StaleNodeException.))
         (throw ex)))))
 
-(defn- resolve-object-id [cdt backend-node-id]
+(defn- check-in-dom [cdt object-id]
   (try
-    (-> (invoke {:cdt  cdt
-                 :cmd  "DOM.resolveNode"
-                 :args {:backendNodeId backend-node-id}})
-        (get-in [:object :objectId]))
+    (when-not (-> (invoke {:cdt  cdt
+                           :cmd  "Runtime.callFunctionOn"
+                           :args {:functionDeclaration "function() { return this === document || !!this.parentNode; }"
+                                  :awaitPromise        false
+                                  :returnByValue       true
+                                  :objectId            object-id}})
+                  (get-in [:result :value])
+                  (boolean))
+      (throw (StaleNodeException.)))
+    (catch StaleNodeException ex
+      (throw ex))
     (catch Exception ex
       (if (stale-node? ex)
         (throw (StaleNodeException.))
         (throw ex)))))
 
-(defn- resolve-node-id [cdt backend-node-id]
+(defn- resolve-node-id [cdt object-id]
   (try
-    (let [object-id (resolve-object-id cdt backend-node-id)
-          node (invoke {:cdt  cdt
+    (let [node (invoke {:cdt  cdt
                         :cmd  "DOM.requestNode"
                         :args {:objectId object-id}})]
       (:nodeId node))
@@ -46,9 +56,8 @@
         (throw (StaleNodeException.))
         (throw ex)))))
 
-(defn- resolve-tag [{:keys [cdt backend-node-id]}]
-  (let [object-id (resolve-object-id cdt backend-node-id)
-        desc (invoke {:cdt  cdt
+(defn- resolve-tag [{:keys [cdt object-id]}]
+  (let [desc (invoke {:cdt  cdt
                       :cmd  "DOM.describeNode"
                       :args {:objectId object-id}})
         node (:node desc)
@@ -63,7 +72,7 @@
                              (seq))]
            (str "." (string/join "." cls))))))
 
-(defrecord Node [cdt backend-node-id display-name selector])
+(defrecord Node [cdt object-id display-name selector])
 
 (defmethod print-method Node [{:keys [display-name selector] :as node} writer]
   (let [base-props
@@ -109,26 +118,29 @@
 (defn wrap-node
   "Creates a new remote node wrapper, referenced by node's
    backend node id"
-  [cdt {:keys [nodeId backendNodeId]} context display-name selector]
+  [cdt {:keys [nodeId backendNodeId objectId] :as lookup} context display-name selector]
   {:pre [(some? cdt)
          (or (node? context)
              (nil? context))]}
   (cond
-    (some? backendNodeId)
+    (some? objectId)
     (let [sel (when-let [parts (seq (filter some? [(:selector context) selector]))]
                 (string/join " " parts))]
-      (->Node cdt backendNodeId display-name sel))
-    (some? nodeId)
-    (recur cdt {:backendNodeId (resolve-backend-node-id cdt nodeId)} context display-name selector)
+      (->Node cdt objectId display-name sel))
+    (or (some? backendNodeId)
+        (some? nodeId))
+    (recur cdt {:objectId (resolve-object-id cdt lookup)} context display-name selector)
     :else nil))
 
-(defn get-object-id [{:keys [cdt backend-node-id] :as node}]
+(defn get-object-id [{:keys [cdt object-id] :as node}]
   {:pre [(node? node)]}
-  (resolve-object-id cdt backend-node-id))
+  (check-in-dom cdt object-id)
+  (:object-id node))
 
-(defn get-node-id [{:keys [cdt backend-node-id] :as node}]
+(defn get-node-id [{:keys [cdt object-id] :as node}]
   {:pre [(node? node)]}
-  (resolve-node-id cdt backend-node-id))
+  (check-in-dom cdt object-id)
+  (resolve-node-id cdt object-id))
 
 (defn get-node-name [node]
   {:pre [(node? node)]}

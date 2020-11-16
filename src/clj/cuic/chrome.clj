@@ -1,13 +1,13 @@
 (ns cuic.chrome
   (:require [clojure.spec.alpha :as s]
-            [clojure.tools.logging :refer [trace warn]]
+            [clojure.tools.logging :refer [trace debug warn error]]
             [clojure.java.io :as io]
             [clojure.string :as string]
             [clojure.data.json :as json]
             [cuic.internal.cdt :as cdt]
             [cuic.internal.page :as page]
             [cuic.internal.runtime :as runtime])
-  (:import (java.util List)
+  (:import (java.util List Scanner)
            (java.util.concurrent TimeUnit)
            (java.lang ProcessBuilder$Redirect AutoCloseable)
            (java.nio.file Files LinkOption Path)
@@ -45,8 +45,26 @@
         (warn ex "Interrupted while terminating Chrome process")
         (.destroyForcibly proc)))))
 
+(defn- log-proc-output [^Process proc]
+  (with-open [scanner (doto (Scanner. (.getInputStream proc))
+                        (.useDelimiter (System/getProperty "line.separator")))]
+    (try
+      (while (and (.hasNext scanner)
+                  (not (Thread/interrupted)))
+        (trace (.next scanner)))
+      (catch InterruptedException _)
+      (catch Exception ex
+        (error ex "Unexpected exception occurred while reading Chrome output")))
+    (trace "Chrome output logger stopped")))
+
+(defn- start-loggers [^Process proc]
+  (doto (Thread. #(log-proc-output proc))
+    (.setDaemon true)
+    (.start)))
+
 (defn- delete-data-dir [^Path dir-path]
   (when dir-path
+    (debug "Deleting temporary data directory" (str dir-path))
     (doseq [file (reverse (file-seq (.toFile dir-path)))]
       (try
         (.delete ^File file)
@@ -90,7 +108,7 @@
     (filter #(= "page" (:type %)) items)))
 
 
-(defrecord Chrome [process args tmp-data-dir cdt port page]
+(defrecord Chrome [process loggers args tmp-data-dir cdt port page]
   AutoCloseable
   (close [_]
     (page/detach page)
@@ -219,13 +237,15 @@
                             (true? v) (str "--" (name k))
                             :else (str "--" (name k) "=" v))))
                    (into [(.toString (.toAbsolutePath chrome-path))]))
-         _ (trace "Starting Chrome with command:" (string/join " " args))
+         _ (debug "Starting Chrome with command:" (string/join " " args))
          proc (-> (ProcessBuilder. ^List (apply list args))
                   (.redirectErrorStream true)
                   (.redirectOutput ProcessBuilder$Redirect/PIPE)
-                  (.start))]
+                  (.redirectErrorStream true)
+                  (.start))
+         loggers (start-loggers proc)]
      (try
-       (trace "Connecting to Chrome Devtools at port" port)
+       (debug "Connecting to Chrome Devtools at port" port)
        (when-not (wait-for-devtools {:host  "localhost"
                                      :port  port
                                      :until (+ (System/currentTimeMillis) timeout)})
@@ -233,12 +253,12 @@
        (let [tabs (list-tabs "localhost" port)
              ws-url (-> tabs (first) :webSocketDebuggerUrl)
              cdt (cdt/connect ws-url)]
-         (trace "Connected to Chrome Devtools at port" port)
+         (debug "Connected to Chrome Devtools at port" port)
          (when tmp-data-dir
            (doto (.toFile tmp-data-dir)
              (.deleteOnExit)))
          (runtime/initialize cdt)
-         (->Chrome proc args tmp-data-dir cdt port (page/attach cdt)))
+         (->Chrome proc loggers args tmp-data-dir cdt port (page/attach cdt)))
        (catch Exception e
          (terminate proc)
          (delete-data-dir tmp-data-dir)

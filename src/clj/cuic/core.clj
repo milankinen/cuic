@@ -575,6 +575,16 @@
                           "because node does not exist anymore")
       (-js-prop node "!!this.offsetParent"))))
 
+(defn in-viewport?
+  "Returns boolean whether the given node is currently visible and
+   in the viewport"
+  [node]
+  (rewrite-exceptions
+    (check-arg [maybe-node? "dom node"] [node "node"])
+    (stale-as-ex (cuic-ex "Can't check visibility of node" (quoted (get-node-name node))
+                          "because node does not exist anymore")
+      (-js-prop node "!!this.offsetParent && __CUIC__.isInViewport(this)"))))
+
 (defn inner-text
   "Returns the inner text of the given node. See
    https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/innerText

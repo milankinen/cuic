@@ -1,6 +1,7 @@
 (ns cuic.test
   "Utilities for writing concise and robust UI tests.
 
+   Example usage:
    ```clojure
    (ns todomvc-tests
      (:require [clojure.test :refer :all]
@@ -39,7 +40,7 @@
 
 (set! *warn-on-reflection* true)
 
-(defonce ^:dynamic *current-cuic-test* nil)
+(defonce ^:no-doc ^:dynamic *current-cuic-test* nil)
 
 (defonce ^:private eventually
   (gensym (str 'cuic.test/is-eventually-)))

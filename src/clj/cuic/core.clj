@@ -1,5 +1,5 @@
 (ns cuic.core
-  "Core functions for ui queries and interactions"
+  "Core functions for UI queries and interactions"
   (:refer-clojure :exclude [find type])
   (:require [clojure.string :as string]
             [cuic.chrome :refer [chrome? devtools page]]

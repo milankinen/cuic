@@ -3,12 +3,18 @@ set -euo pipefail
 
 mkdir -p target
 echo '#!/bin/bash
+set -eux
 mkdir -p /root/.gnupg && chmod 600 /root/.gnupg
-for k in /gnupg/keyrings/*; do
-  cp $k /root/.gnupg/
-done
+cp -r /gnupg/* /root/.gnupg/
+rm -f /root/.gnupg/S.*
+rm -f /root/.gnupg/*.conf
 export GPG_TTY=$(tty)
- ./lein release
+
+curl -sL https://deb.nodesource.com/setup_12.x | bash
+apt install -y nodejs
+./lein clean
+./lein build-js
+./lein deploy clojars
 ' > target/entrypoint.sh
 
 docker run --rm -ti \

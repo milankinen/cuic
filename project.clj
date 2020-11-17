@@ -4,6 +4,7 @@
   :license {:name "MIT"
             :url  "https://opensource.org/licenses/MIT"}
   :signing {:gpg-key "9DD8C3E9"}
+  :clean-targets ^{:protect false} [:target-path "src/js/node_modules" "src/js/build"]
   :dependencies
   [[org.clojure/tools.logging "1.1.0"]
    [org.clojure/data.json "1.0.0"]
@@ -25,9 +26,9 @@
                      [lein-shell "0.5.0"]]}
              :repl {:jvm-opts ["-Dcuic.headless=false"
                                "-Dcuic.exceptions.full_stacktrace=true"]}}
-  :deploy-repositories [["releases" :clojars]]
+  :deploy-repositories [["releases" :clojars]
+                        ["snapshots" :clojars]]
   :aliases {"test"     ["trampoline" "run" "-m" "test-runner/run-tests-cli"]
             "build-js" ["shell" "./src/js/build.sh"]
-            "t"        ["test"]
-            "release"  ["do" ["clean"] ["deploy" "clojars"]]}
+            "t"        ["test"]}
   :release-tasks [["deploy"]])

@@ -104,9 +104,9 @@
     $.onready(() => {
       const input = $("#input")
       const text = $("#input + div")
-      text.innerText = "Input value is: " + (input.value || "")
+      text.innerText = "Input value is: " + (input.value || "-")
       input.addEventListener("input", e => {
-        text.innerText = "Input value is: " + (e.target.value || "")
+        text.innerText = "Input value is: " + (e.target.value || "-")
       })
     })
   </script>
@@ -132,7 +132,7 @@
 </section>
 
 <section>
-  <input name="rad" type="radio" gr value="a"> Radio A
+  <input name="rad" type="radio" value="a"> Radio A
   <input name="rad" type="radio" value="b"> Radio B
 </section>
 
@@ -141,11 +141,33 @@
   <div><input type="checkbox" id="checked" checked> Uncheck me</div>
 </section>
 
-<section id="lazy">
-  <button onclick="setTimeout(function() { document.querySelector('#lazy input').removeAttribute('hidden') }, 1000)">
+<section>
+  <button id="activate-after-1s-trigger">
     Activate
   </button>
-  <input hidden value=""/>
+  <input id="input-to-activate" hidden disabled value=""/>
+  <div id="activated-input-result"></div>
+  <script type="text/javascript">
+    $.onready(() => {
+      const input = $("#input-to-activate")
+      const result = $("#activated-input-result")
+      $("#activate-after-1s-trigger").addEventListener("click", event => {
+        setTimeout(() => {
+          input.removeAttribute("hidden")
+        }, 500)
+        setTimeout(() => {
+          input.removeAttribute("disabled")
+        }, 1000)
+        event.target.setAttribute("disabled", true)
+      })
+      input.addEventListener("input", event => {
+        result.innerText = "Typed: " + event.target.value
+      })
+      input.addEventListener("click", () => {
+        result.innerText = "Clicked"
+      })
+    })
+  </script>
 </section>
 
 
@@ -161,6 +183,31 @@
           input.remove()
         }
         event.target.setAttribute("disabled", true)
+      })
+    })
+  </script>
+</section>
+
+<section>
+  <input id="files" type="file" multiple/>
+  <div id="file-names"></div>
+  <script type="text/javascript">
+    $.onready(() => {
+      $("#files").addEventListener("change", (event) => {
+        const names = [...event.target.files].map(file => file.name).sort().join(", ")
+        $("#file-names").innerText = "Added files: " + (names || "-")
+      })
+    })
+  </script>
+</section>
+
+<section style="margin-top: 2500px;">
+  <button id="needs-scrolling-btn">Click me</button>
+  <div id="needs-scrolling-result"></div>
+  <script type="text/javascript">
+    $.onready(() => {
+      $("#needs-scrolling-btn").addEventListener("click", () => {
+        $("#needs-scrolling-result").innerText = "Clicked"
       })
     })
   </script>

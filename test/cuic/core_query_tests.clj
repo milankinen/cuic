@@ -3,10 +3,10 @@
             [clojure.string :as string]
             [cuic.core :as c]
             [cuic.test :refer [deftest* is*]]
-            [cuic.test-common :refer [multibrowser-fixture
-                                      forms-test-fixture
-                                      *secondary-chrome*
-                                      todos-url]])
+            [test-common :refer [multibrowser-fixture
+                                 forms-test-fixture
+                                 *secondary-chrome*
+                                 todos-url]])
   (:import (cuic CuicException)))
 
 (use-fixtures

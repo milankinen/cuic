@@ -1,4 +1,4 @@
-(ns cuic.test-common
+(ns test-common
   (:require [clojure.java.io :as io]
             [cuic.core :as c]
             [cuic.test :refer [browser-test-fixture]])

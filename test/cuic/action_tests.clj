@@ -4,7 +4,7 @@
             [clojure.java.io :as io]
             [cuic.core :as c]
             [cuic.test :refer [deftest* is* browser-test-fixture]]
-            [cuic.test-common :refer [forms-url]])
+            [test-common :refer [forms-url]])
   (:import (cuic CuicException)))
 
 (use-fixtures

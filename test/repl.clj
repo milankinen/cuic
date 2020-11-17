@@ -1,7 +1,7 @@
 (ns repl
   (:require [cuic.core :as c]
             [cuic.chrome :as chrome]
-            [cuic.test-common :refer [forms-url todos-url]]))
+            [test-common :refer [forms-url todos-url]]))
 
 (comment
 

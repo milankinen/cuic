@@ -3,7 +3,7 @@
             [clojure.string :as string]
             [cuic.core :as c]
             [cuic.test :refer [deftest* is* browser-test-fixture]]
-            [cuic.test-common :refer [todos-url]])
+            [test-common :refer [todos-url]])
   (:import (javax.imageio ImageIO)
            (java.io ByteArrayInputStream)))
 

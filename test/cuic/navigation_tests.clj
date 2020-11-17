@@ -2,7 +2,7 @@
   (:require [clojure.test :refer :all]
             [cuic.core :as c]
             [cuic.test :refer [deftest* is* browser-test-fixture]]
-            [cuic.test-common :refer [forms-test-fixture]]))
+            [test-common :refer [forms-test-fixture]]))
 
 (use-fixtures
   :once

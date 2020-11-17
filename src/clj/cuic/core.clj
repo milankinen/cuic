@@ -1157,7 +1157,7 @@
         (throw (cuic-ex "File does not exist:" (.getName ^File file)))))
     (stale-as-ex (cuic-ex "Can't add files to node" (quoted (get-node-name node))
                           "because node does not exist anymore")
-      (when-not (-js-prop node "this.matches('input[type=file]')'")
+      (when-not (-js-prop node "this.matches('input[type=file]')")
         (throw (cuic-ex "Node" (quoted (get-node-name node)) "is not a file input element")))
       (when-not (-wait-visible node)
         (throw (cuic-ex "Can't add files to node" (quoted (get-node-name node))

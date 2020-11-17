@@ -30,7 +30,7 @@
                   :x    (double x)
                   :y    (double y)}}))
 
-(defn mouse-click [cdt {:keys [x y button]}]
+(defn mouse-click [cdt {:keys [x y button clicks]}]
   {:pre [(keyword? button)]}
   (doseq [type ["mousePressed" "mouseReleased"]]
     (invoke {:cdt  cdt
@@ -39,7 +39,7 @@
                     :x          (double x)
                     :y          (double y)
                     :button     (name button)
-                    :clickCount 1}})))
+                    :clickCount clicks}})))
 
 (defn key-event [cdt type modifiers+key]
   (let [xs (string/split (name modifiers+key) #"\+")

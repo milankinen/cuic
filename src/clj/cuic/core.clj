@@ -962,7 +962,7 @@
    the node once. Waits [[cuic.core/*timeout*]] until the node becomes
    visible or throws an exception if timeout exceeds.
 
-   Throws an exception if node is not hoverable: it has either zero
+   Throws an exception if node is not clickable: it has either zero
    width or zero height or it is disabled.
 
    Returns the clicked node for threading.
@@ -991,7 +991,44 @@
           (throw (cuic-ex "Node" (quoted (get-node-name node))
                           "is not clickable")))
         (mouse-move cdt {:x x :y y})
-        (mouse-click cdt {:x x :y y :button :left})
+        (mouse-click cdt {:x x :y y :button :left :clicks 1})
+        node))))
+
+(defn double-click
+  "First scrolls the given node into view (if needed) and then double-clicks
+   the node once. Waits [[cuic.core/*timeout*]] until the node becomes
+   visible or throws an exception if timeout exceeds.
+
+   Throws an exception if node is not clickable: it has either zero
+   width or zero height or it is disabled.
+
+   Returns the clicked node for threading.
+
+   ```clojure
+   (c/double-click (c/find \"button#save\"))
+   ```"
+  [node]
+  (rewrite-exceptions
+    (check-arg [node? "dom node"] [node "clicked node"])
+    (stale-as-ex (cuic-ex "Can't click node" (quoted (get-node-name node))
+                          "because node does not exist anymore")
+      (when-not (-wait-visible node)
+        (throw (timeout-ex "Can't double-click node" (quoted (get-node-name node))
+                           "because node is not visible")))
+      (scroll-into-view-if-needed node)
+      (when-not (-wait-enabled node)
+        (throw (timeout-ex "Can't double-click node" (quoted (get-node-name node))
+                           "because node is disabled")))
+      (let [{:keys [top left width height]} (-bb node)
+            cdt (get-node-cdt node)
+            x (+ left (/ width 2))
+            y (+ top (/ height 2))]
+        (when (or (zero? width)
+                  (zero? height))
+          (throw (cuic-ex "Node" (quoted (get-node-name node))
+                          "is not clickable")))
+        (mouse-move cdt {:x x :y y})
+        (mouse-click cdt {:x x :y y :button :left :clicks 2})
         node))))
 
 (defn focus

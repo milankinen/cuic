@@ -7,7 +7,8 @@
             [cuic.internal.cdt :as cdt]
             [cuic.internal.page :as page]
             [cuic.internal.runtime :as runtime])
-  (:import (java.util List Scanner)
+  (:import (clojure.lang IPersistentVector IAtom)
+           (java.util List Scanner)
            (java.util.concurrent TimeUnit)
            (java.lang ProcessBuilder$Redirect AutoCloseable)
            (java.nio.file Files LinkOption Path)
@@ -77,7 +78,7 @@
     (catch Exception e
       (throw (CuicException. "Could not find free port for Chrome debug protocol" e)))))
 
-(defn wait-for-devtools [{:keys [host port until] :as props}]
+(defn- wait-for-devtools [{:keys [host port until] :as props}]
   (let [url (URL. (format "http://%s:%d/json/version" host port))
         conn ^HttpURLConnection (.openConnection url)
         status (try
@@ -101,24 +102,36 @@
       (do (Thread/sleep 100)
           (recur props)))))
 
-(defn list-tabs [host port]
+(defn- list-tabs [host port]
   (let [items (-> (format "http://%s:%d/json/list" host port)
                   (slurp)
                   (json/read-str :key-fn keyword))]
     (filter #(= "page" (:type %)) items)))
 
-
-(defrecord Chrome [process loggers args tmp-data-dir cdt port page]
+(defrecord ^:no-doc Chrome
+  [^Process process
+   ^Thread loggers
+   ^IPersistentVector args
+   ^String data-dir
+   ^Boolean destroy-data-dir?
+   ^Long port
+   ^IAtom tools]
   AutoCloseable
   (close [_]
-    (page/detach page)
-    (cdt/disconnect cdt)
-    (terminate process)
-    (delete-data-dir tmp-data-dir)))
+    (when-let [{:keys [page cdt]} @tools]
+      (reset! tools nil)
+      (page/detach page)
+      (cdt/disconnect cdt)
+      (terminate process)
+      (when destroy-data-dir?
+        (delete-data-dir data-dir)))))
 
-(defmethod print-method Chrome [{:keys [args port]} writer]
+(defmethod print-method Chrome [{:keys [^Process process args port data-dir]} writer]
   (let [props {:executable (first args)
+               :pid        (when (.isAlive process)
+                             (.pid process))
                :args       (subvec args 1)
+               :data-dir   (str data-dir)
                :cdp-port   port}]
     (.write ^Writer writer ^String (str "#chrome " (pr-str props)))))
 
@@ -128,15 +141,31 @@
             (Long/parseLong))
     (catch Exception _)))
 
+(defn- get-tools [chrome]
+  (or @(:tools chrome)
+      (throw (CuicException. "Browser is closed"))))
+
 ;;
 ;;
+
+(defn chrome?
+  "Checks whether the given value is valid Chrome browser instance or not"
+  [val]
+  (instance? Chrome val))
+
+(defn ^:no-doc page
+  "Returns internal page object for the given Chrome instance. Do not
+   use in your app code!"
+  [chrome]
+  {:pre [(chrome? chrome)]}
+  (:page (get-tools chrome)))
 
 (s/def ::width pos-int?)
 (s/def ::height pos-int?)
 (s/def ::headless boolean?)
 (s/def ::window-size (s/keys :req-un [::width ::height]))
 (s/def ::disable-gpu boolean?)
-(s/def ::remote-debugging-port integer?)
+(s/def ::remote-debugging-port pos-int?)
 (s/def ::disable-hang-monitor boolean?)
 (s/def ::disable-popup-blocking boolean?)
 (s/def ::disable-prompt-on-repost boolean?)
@@ -144,7 +173,7 @@
 (s/def ::no-first-run boolean?)
 (s/def ::disable-sync boolean?)
 (s/def ::metrics-recording-only boolean?)
-(s/def ::user-data-dir (s/nilable string?))
+(s/def ::user-data-dir (s/nilable #(instance? Path %)))
 (s/def ::disable-extensions boolean?)
 (s/def ::disable-client-side-phishing-detection boolean?)
 (s/def ::incognito boolean?)
@@ -183,6 +212,7 @@
            ::hide-scrollbars]))
 
 (def defaults
+  "Default launch options for non-headless Chrome instance"
   {:window-size                            nil
    :disable-gpu                            false
    :remote-debugging-port                  0
@@ -206,37 +236,103 @@
    :hide-scrollbars                        false})
 
 (def headless-defaults
+  "Default launch options for headless Chrome instance"
   (assoc defaults
     :disable-gpu true
     :mute-audio true
     :hide-scrollbars true))
 
 (defn ^Chrome launch
+  "Launches a new local Chrome process with the given options and returns
+   instance to the launched Chrome that can be used as a browser in
+   [[cuic.core]] functions.
+
+   The provided options have defaults using either [[cuic.chrome/defaults]]
+   or  [[cuic.chrome/headless-defaults]] depending on whether the process
+   was launched in headless mode or not. For full list of options, see
+   https://peter.sh/experiments/chromium-command-line-switches. Option key
+   will be the switch name without `--` prefix, If option is boolean type
+   flag its value must be passed as a boolean, e.g. `--mute-audio` becomes
+   `{:mute-audio true}`. Other arguments should be passed as strings. The
+   only exceptions are:
+      * `:window-size {:width <pos-int> :height <pos-int>}`
+      * `:remote-debugging-port <pos-int>`
+      * `:user-data-dir <java.nio.file.Path>`
+
+   The function tries to auto-detect the path of the used Chrome binary,
+   using known default locations. If you're using non-standard installation
+   location, you can pass the custom path as a `java.nio.file.Path` parameter.
+   The used installation must have **at least** Chromium version 64.0.3264.0
+   (r515411).
+
+   After the process is launched, the function waits until Chome devtools
+   become available, using `-Dcuic.chrome.timeout=<ms>` timeout by default.
+   This can be overrided with the last parameter. Devtools protocol port
+   will be selected randomly unless explicitly specified in options.
+
+   By default each launched process will get its own temporary data directory,
+   meaning that the launched instances do not share any state at all. When
+   the instance gets closed, its temporary data directory will be deleted
+   as well. If you want to share state between separate instances/processes,
+   you should pass the data directory as `:user-data-dir` option. In this case,
+   the directory won't be removed even if the instance gets closed: the invoker
+   of this function is responsible for managing the directory's creation, access
+   and removal.
+
+   Chrome instances implement `java.lang.AutoCloseable` so they can be used
+   with Clojure's `with-open` macro.
+
+   ```clojure
+   ;; Launch headless instance using provided defaults and
+   ;; auto-detected binary
+   (def chrome (launch))
+
+   ;; Launch non-headless instance using pre-defined data directory
+   (def data-dir
+     (doto (io/file \"chrome-data\")
+       (.mkdirs)))
+   (def chrome
+     (launch {:headless      false
+              :user-data-dir (.toPath data-dir)}))
+
+   ;; Launch chrome from non-standard location
+   (def chrome (launch {} (.toPath (io/file \"/tmp/chrome/google-chrome-stable\"))))
+
+   ;; Launch headless instance and use it as a default browser
+   ;; and close the instance after usage
+   (with-open [chrome (launch)]
+     (binding [c/*browser* chrome]
+       ...do something...))
+   ```
+   "
   ([] (launch {:headless true}))
-  ([options] (launch options (or (long-prop "cuic.chrome.timeout") 10000)))
-  ([options timeout]
-   {:pre [(s/valid? ::options options)
+  ([options] (launch options (get-chrome-binary-path)))
+  ([options chrome-path] (launch options chrome-path (or (long-prop "cuic.chrome.timeout") 10000)))
+  ([options chrome-path timeout]
+   {:pre [(instance? Path chrome-path)
+          (s/valid? ::options options)
           (pos-int? timeout)]}
-   (let [chrome-path (get-chrome-binary-path)
-         user-data-dir (:user-data-dir options)
-         tmp-data-dir (when-not user-data-dir
+   (let [custom-data-dir (:user-data-dir options)
+         tmp-data-dir (when-not custom-data-dir
                         (-> (Files/createTempDirectory "cuic-user-data" (into-array FileAttribute []))
                             (.toAbsolutePath)))
+         data-dir (or custom-data-dir tmp-data-dir)
          port (or (:remote-debugging-port options)
                   (get-free-port-for-cdp))
          args (->> (merge (if (:headless options)
                             headless-defaults
                             defaults)
                           options
-                          {:user-data-dir         (or user-data-dir tmp-data-dir)
+                          {:user-data-dir         (str data-dir)
                            :remote-debugging-port port})
                    (filter second)
-                   (map (fn [[k v]]
-                          (cond
-                            (= :window-size k) (str "--" (name k) "=" (:width v) "," (:height v))
-                            (true? v) (str "--" (name k))
-                            :else (str "--" (name k) "=" v))))
-                   (into [(.toString (.toAbsolutePath chrome-path))]))
+                   (keep (fn [[k v]]
+                           (cond
+                             (= :window-size k) (str "--" (name k) "=" (:width v) "," (:height v))
+                             (true? v) (str "--" (name k))
+                             (false? v) nil
+                             :else (str "--" (name k) "=" v))))
+                   (into [(.toString (.toAbsolutePath ^Path chrome-path))]))
          _ (debug "Starting Chrome with command:" (string/join " " args))
          proc (-> (ProcessBuilder. ^List (apply list args))
                   (.redirectErrorStream true)
@@ -258,7 +354,13 @@
            (doto (.toFile tmp-data-dir)
              (.deleteOnExit)))
          (runtime/initialize cdt)
-         (->Chrome proc loggers args tmp-data-dir cdt port (page/attach cdt)))
+         (->Chrome proc
+                   loggers
+                   args
+                   data-dir
+                   (nil? custom-data-dir)
+                   port
+                   (atom {:cdt cdt :page (page/attach cdt)})))
        (catch Exception e
          (terminate proc)
          (delete-data-dir tmp-data-dir)
@@ -266,13 +368,9 @@
            (throw e)
            (throw (CuicException. "Could not connect to Chrome Devtools" e))))))))
 
-(defn chrome? [val]
-  (instance? Chrome val))
-
-(defn devtools [chrome]
+(defn ^:no-doc devtools
+  "Returns handle to the Chrome devtools. Not exposed as public
+   function because the lack of public low-level API."
+  [chrome]
   {:pre [(chrome? chrome)]}
-  (:cdt chrome))
-
-(defn page [chrome]
-  {:pre [(chrome? chrome)]}
-  (:page chrome))
+  (:cdt (get-tools chrome)))

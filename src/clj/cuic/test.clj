@@ -4,7 +4,8 @@
             [clojure.java.io :as io]
             [cuic.core :as c]
             [cuic.chrome :as chrome])
-  (:import (cuic AbortTestError TimeoutException)))
+  (:import (java.io File)
+           (cuic AbortTestError TimeoutException)))
 
 (set! *warn-on-reflection* true)
 
@@ -35,14 +36,16 @@
 
 ;;;;
 
-(def ^:dynamic *screenshot-dir* "target/screenshots")
-(def ^:dynamic *screenshot-options* {:format :png})
+(def ^:dynamic *screenshot-options*
+  {:dir     (io/file "target/screenshots")
+   :format  :png
+   :timeout 10000})
 
 (defn -try-take-screenshot [test-name ^AbortTestError err]
   (try
     (when c/*browser*
       (let [data (c/screenshot)
-            dir (doto (io/file *screenshot-dir*)
+            dir (doto ^File (:dir *screenshot-options*)
                   (.mkdirs))]
         (loop [base (-> (str (string/replace test-name #"\." "\\$")
                              "$$" (:context (.getDetails err)))
@@ -60,10 +63,6 @@
     (catch Exception ex
       (do-report {:type  ::screenshot-failed
                   :cause ex}))))
-
-(defn set-screenshot-dir! [dir]
-  {:pre [(string? dir)]}
-  (alter-var-root #'*screenshot-dir* (constantly dir)))
 
 (defn set-screenshot-options! [opts]
   {:pre [(map? opts)]}

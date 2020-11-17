@@ -166,6 +166,13 @@
                                  "value from expression:" ~(pr-str expr)))
               (recur)))))))
 
+(defn timeout-ex?
+  "Return true if the given exception is caused by timeout while waiting
+   for certain condition, for example node becoming visible before click
+   or custom condition from [[cuic.core/wait]]."
+  [ex]
+  (instance? TimeoutException ex))
+
 (defmacro in
   "Macro that runs its body using the given node as \"root scope\"
    for queries: all matching elements must be found under the node.
@@ -333,9 +340,9 @@
                 0 (if (< elapsed timeout)
                     (do (sleep (min 100 (- *timeout* elapsed)))
                         (recur))
-                    (throw (cuic-ex "Could not find node" (quoted as) "from"
-                                    (quoted (get-node-name from)) "with selector"
-                                    (quoted by) "in" timeout "milliseconds")))
+                    (throw (timeout-ex "Could not find node" (quoted as) "from"
+                                       (quoted (get-node-name from)) "with selector"
+                                       (quoted by) "in" timeout "milliseconds")))
                 1 (or (stale-as-nil (wrap-node cdt {:nodeId (first node-ids)} from as by))
                       (recur))
                 (throw (cuic-ex "Found too many" (str "(" n-nodes ")") (quoted as)
@@ -914,8 +921,8 @@
     (stale-as-ex (cuic-ex "Can't scroll node" (quoted (get-node-name node))
                           "into view because node does not exist anymore")
       (when-not (-wait-visible node)
-        (throw (cuic-ex "Can't scroll node" (quoted (get-node-name node))
-                        "into view because node is not visible")))
+        (throw (timeout-ex "Can't scroll node" (quoted (get-node-name node))
+                           "into view because node is not visible")))
       (scroll-into-view-if-needed node)
       node)))
 
@@ -934,8 +941,8 @@
     (stale-as-ex (cuic-ex "Can't hover over node" (quoted (get-node-name node))
                           "because node does not exist anymore")
       (when-not (-wait-visible node)
-        (throw (cuic-ex "Can't hover over node" (quoted (get-node-name node))
-                        "because node is not visible")))
+        (throw (timeout-ex "Can't hover over node" (quoted (get-node-name node))
+                           "because node is not visible")))
       (scroll-into-view-if-needed node)
       (let [{:keys [top left width height]} (-bb node)
             cdt (get-node-cdt node)
@@ -967,12 +974,12 @@
     (stale-as-ex (cuic-ex "Can't click node" (quoted (get-node-name node))
                           "because node does not exist anymore")
       (when-not (-wait-visible node)
-        (throw (cuic-ex "Can't click node" (quoted (get-node-name node))
-                        "because node is not visible")))
+        (throw (timeout-ex "Can't click node" (quoted (get-node-name node))
+                           "because node is not visible")))
       (scroll-into-view-if-needed node)
       (when-not (-wait-enabled node)
-        (throw (cuic-ex "Can't click node" (quoted (get-node-name node))
-                        "because node is disabled")))
+        (throw (timeout-ex "Can't click node" (quoted (get-node-name node))
+                           "because node is disabled")))
       (let [{:keys [top left width height]} (-bb node)
             cdt (get-node-cdt node)
             x (+ left (/ width 2))
@@ -997,12 +1004,12 @@
     (stale-as-ex (cuic-ex "Can't focus on node" (quoted (get-node-name node))
                           "because node does not exist anymore")
       (when-not (-wait-visible node)
-        (throw (cuic-ex "Can't focus on node" (quoted (get-node-name node))
-                        "because node is not visible")))
+        (throw (timeout-ex "Can't focus on node" (quoted (get-node-name node))
+                           "because node is not visible")))
       (scroll-into-view-if-needed node)
       (when-not (-wait-enabled node)
-        (throw (cuic-ex "Can't focus on node" (quoted (get-node-name node))
-                        "because node is disabled")))
+        (throw (timeout-ex "Can't focus on node" (quoted (get-node-name node))
+                           "because node is disabled")))
       (let [cdt (get-node-cdt node)]
         (invoke {:cdt  cdt
                  :cmd  "DOM.focus"
@@ -1024,12 +1031,12 @@
       (when-not (-js-prop node "typeof this.select === 'function'")
         (throw (cuic-ex "Node" (quoted (get-node-name node)) "is not a valid input element")))
       (when-not (-wait-visible node)
-        (throw (cuic-ex "Can't select text from node" (quoted (get-node-name node))
-                        "because node is not visible")))
+        (throw (timeout-ex "Can't select text from node" (quoted (get-node-name node))
+                           "because node is not visible")))
       (scroll-into-view-if-needed node)
       (when-not (-wait-enabled node)
-        (throw (cuic-ex "Can't select text from node" (quoted (get-node-name node))
-                        "because node is disabled")))
+        (throw (timeout-ex "Can't select text from node" (quoted (get-node-name node))
+                           "because node is disabled")))
       (-exec-js "this.select()" {} node)
       node)))
 
@@ -1048,12 +1055,12 @@
       (when-not (-js-prop node "typeof this.select === 'function'")
         (throw (cuic-ex "Node" (quoted (get-node-name node)) "is not a valid input element")))
       (when-not (-wait-visible node)
-        (throw (cuic-ex "Can't clear text from node" (quoted (get-node-name node))
-                        "because node is not visible")))
+        (throw (timeout-ex "Can't clear text from node" (quoted (get-node-name node))
+                           "because node is not visible")))
       (scroll-into-view-if-needed node)
       (when-not (-wait-enabled node)
-        (throw (cuic-ex "Can't clear text from node" (quoted (get-node-name node))
-                        "because node is disabled")))
+        (throw (timeout-ex "Can't clear text from node" (quoted (get-node-name node))
+                           "because node is disabled")))
       (-exec-js "this.select()" {} node)
       (type-kb (get-node-cdt node) ['Backspace] 0)
       node)))
@@ -1097,12 +1104,12 @@
        (stale-as-ex (cuic-ex "Can't fill node" (quoted (get-node-name node))
                              "because node does not exist anymore")
          (when-not (-wait-visible node)
-           (throw (cuic-ex "Can't fill node" (quoted (get-node-name node))
-                           "because node is not visible")))
+           (throw (timeout-ex "Can't fill node" (quoted (get-node-name node))
+                              "because node is not visible")))
          (scroll-into-view-if-needed node)
          (when-not (-wait-enabled node)
-           (throw (cuic-ex "Can't fill node" (quoted (get-node-name node))
-                           "because node is disabled")))
+           (throw (timeout-ex "Can't fill node" (quoted (get-node-name node))
+                              "because node is disabled")))
          (-exec-js "this.select()" {} node)
          (type-kb cdt ['Backspace] chars-per-min)
          (type-kb cdt text chars-per-min)
@@ -1125,12 +1132,12 @@
       (when (not= "SELECT" (-js-prop node "this.tagName"))
         (throw (cuic-ex "Node" (quoted (get-node-name node)) "is not a valid select element")))
       (when-not (-wait-visible node)
-        (throw (cuic-ex "Can't choose options from node" (quoted (get-node-name node))
-                        "because node is not visible")))
+        (throw (timeout-ex "Can't choose options from node" (quoted (get-node-name node))
+                           "because node is not visible")))
       (scroll-into-view-if-needed node)
       (when-not (-wait-enabled node)
-        (throw (cuic-ex "Can't choose options from node" (quoted (get-node-name node))
-                        "because node is disabled")))
+        (throw (timeout-ex "Can't choose options from node" (quoted (get-node-name node))
+                           "because node is disabled")))
       (-exec-js "
         for (let o of this.options) {
           console.log(o)
@@ -1170,12 +1177,12 @@
       (when-not (-js-prop node "this.matches('input[type=file]')")
         (throw (cuic-ex "Node" (quoted (get-node-name node)) "is not a file input element")))
       (when-not (-wait-visible node)
-        (throw (cuic-ex "Can't add files to node" (quoted (get-node-name node))
-                        "because node is not visible")))
+        (throw (timeout-ex "Can't add files to node" (quoted (get-node-name node))
+                           "because node is not visible")))
       (scroll-into-view-if-needed node)
       (when-not (-wait-enabled node)
-        (throw (cuic-ex "Can't add files to node" (quoted (get-node-name node))
-                        "because node is disabled")))
+        (throw (timeout-ex "Can't add files to node" (quoted (get-node-name node))
+                           "because node is disabled")))
       (when (seq files)
         (invoke {:cdt  (get-node-cdt node)
                  :cmd  "DOM.setFileInputFiles"

@@ -20,7 +20,6 @@
                 "\n * " (string/join "\n * " (sort (keys keycode-mapping))))))
 
 (defn- get-key-mapping [code]
-  (println (pr-str code))
   (or (get keycode-mapping code)
       (throw (invalid-keycode-ex code))))
 

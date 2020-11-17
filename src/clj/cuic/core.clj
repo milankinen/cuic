@@ -310,8 +310,8 @@
     (loop [selector selector]
       (if (map? selector)
         (let [{:keys [from by as timeout]
-               :or   {from    (or *query-scope* (document))
-                      timeout *timeout*}} selector
+               :or   {timeout *timeout*}} selector
+              from (or from *query-scope* (document))
               _ (check-arg [node? "node"] [from "from scope"])
               _ (check-arg [string? "string"] [by "selector"])
               _ (check-arg [#(or (string? %) (nil? %)) "string"] [as "alias"])
@@ -386,8 +386,8 @@
     (check-arg [#(or (string? %) (map? %)) "string or map"] [selector "selector"])
     (loop [selector selector]
       (if (map? selector)
-        (let [{:keys [from by as]
-               :or   {from (or *query-scope* (document))}} selector
+        (let [{:keys [from by as]} selector
+              from (or from *query-scope* (document))
               _ (check-arg [node? "node"] [from "from scope"])
               _ (check-arg [string? "string"] [by "selector"])
               _ (check-arg [#(or (string? %) (nil? %)) "string"] [as "alias"])
@@ -798,8 +798,8 @@
   ([url opts]
    (rewrite-exceptions
      (let [{:keys [timeout browser]
-            :or   {browser (-require-default-browser)
-                   timeout *timeout*}} opts]
+            :or   {timeout *timeout*}} opts
+           browser (or browser (-require-default-browser))]
        (check-arg [url-str? "valid url string"] [url "url"])
        (check-arg [nat-int? "positive integer or zero"] [timeout "timeout"])
        (navigate-to (page browser) url timeout))
@@ -824,8 +824,8 @@
   ([opts]
    (rewrite-exceptions
      (let [{:keys [timeout browser]
-            :or   {browser (-require-default-browser)
-                   timeout *timeout*}} opts]
+            :or   {timeout *timeout*}} opts
+           browser (or browser (-require-default-browser))]
        (check-arg [nat-int? "positive integer or zero"] [timeout "timeout"])
        (boolean (navigate-back (page browser) timeout))))))
 
@@ -848,8 +848,8 @@
   ([opts]
    (rewrite-exceptions
      (let [{:keys [timeout browser]
-            :or   {browser (-require-default-browser)
-                   timeout *timeout*}} opts]
+            :or   {timeout *timeout*}} opts
+           browser (or browser (-require-default-browser))]
        (check-arg [nat-int? "positive integer or zero"] [timeout "timeout"])
        (boolean (navigate-forward (page browser) timeout))))))
 
@@ -896,8 +896,8 @@
    (rewrite-exceptions
      (check-arg [#(or (string? %) (simple-symbol? %)) "string or keycode symbol"] [text "typed input"])
      (let [{:keys [browser speed]
-            :or   {browser (-require-default-browser)
-                   speed   *typing-speed*}} opts
+            :or   {speed *typing-speed*}} opts
+           browser (or browser (-require-default-browser))
            cdt (devtools browser)]
        (type-kb cdt (if (symbol? text) [text] text) (-chars-per-minute speed))
        nil))))
@@ -1215,20 +1215,20 @@
             format
             quality
             timeout]
-     :or   {browser (-require-default-browser)
-            format  :png
+     :or   {format  :png
             quality 50
             timeout *timeout*}}]
-   (rewrite-exceptions
-     (check-arg [#{:jpeg :png} "either :jgep or :png"] [format "format"])
-     (check-arg [#(and (integer? %) (<= 0 % 100)) "between 0 and 100"] [quality "quality"])
-     (check-arg [nat-int? "positive integer or zero"] [timeout "timeout"])
-     (check-arg [chrome? "chrome instance"] [browser "browser"])
-     (let [cdt (devtools browser)
-           res (invoke {:cdt     cdt
-                        :cmd     "Page.captureScreenshot"
-                        :args    {:format      (name format)
-                                  :quality     quality
-                                  :fromSurface true}
-                        :timeout timeout})]
-       (decode-base64 (:data res))))))
+   (let [browser (or browser (-require-default-browser))]
+     (rewrite-exceptions
+       (check-arg [#{:jpeg :png} "either :jgep or :png"] [format "format"])
+       (check-arg [#(and (integer? %) (<= 0 % 100)) "between 0 and 100"] [quality "quality"])
+       (check-arg [nat-int? "positive integer or zero"] [timeout "timeout"])
+       (check-arg [chrome? "chrome instance"] [browser "browser"])
+       (let [cdt (devtools browser)
+             res (invoke {:cdt     cdt
+                          :cmd     "Page.captureScreenshot"
+                          :args    {:format      (name format)
+                                    :quality     quality
+                                    :fromSurface true}
+                          :timeout timeout})]
+         (decode-base64 (:data res)))))))

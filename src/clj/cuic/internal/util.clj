@@ -44,6 +44,9 @@
     (throw (cuic-ex (str "Expected " arg-name " to be " description
                          ", actual = " (safe-str arg))))))
 
+(def ^:dynamic *hide-internal-stacktrace*
+  (not= "true" (System/getProperty "cuic.exceptions.full_stacktrace")))
+
 (defmacro rewrite-exceptions [& body]
   `(try
      (try
@@ -51,7 +54,7 @@
        (catch DevtoolsProtocolException dpe#
          (throw (CuicException. "Chrome DevTools error occurred" dpe#))))
      (catch CuicException ce#
-       (when (= "true" (System/getProperty "cuic.exceptions.full_stacktrace"))
+       (when-not *hide-internal-stacktrace*
          (throw ce#))
        (.setStackTrace ce# (into-array (next (seq (.getStackTrace (Exception.))))))
        (throw ce#))))

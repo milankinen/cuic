@@ -160,11 +160,13 @@
           start-t# (System/currentTimeMillis)]
       (check-arg [nat-int? "positive integer or zero"] [timeout# "timeout"])
       (loop []
-        (or ~expr
-            (if (>= (- (System/currentTimeMillis) start-t#) timeout#)
-              (throw (timeout-ex "Timeout exceeded while waiting for truthy"
-                                 "value from expression:" ~(pr-str expr)))
-              (recur)))))))
+        (let [val# ~expr]
+          (or val#
+              (if (>= (- (System/currentTimeMillis) start-t#) timeout#)
+                (throw (TimeoutException. (str "Timeout exceeded while waiting for truthy "
+                                               "value from expression: " ~(pr-str expr))
+                                          val#))
+                (recur))))))))
 
 (defn timeout-ex?
   "Return true if the given exception is caused by timeout while waiting

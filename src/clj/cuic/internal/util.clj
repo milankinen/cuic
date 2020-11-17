@@ -37,7 +37,7 @@
 
 (defn timeout-ex [& xs]
   (let [msg (apply str (interpose " " (filter some? xs)))]
-    (TimeoutException. msg)))
+    (TimeoutException. msg nil)))
 
 (defn check-arg [[pred description] [arg arg-name]]
   (when-not (pred arg)

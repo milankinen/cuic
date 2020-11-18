@@ -1,58 +1,69 @@
 # <img src="kuikka.svg" align="left" width="60" height="60"> CUIC
 
-Concise UI testing with Clojure
+Clojure UI testing with Chrome
 
 [![Build Status](https://img.shields.io/travis/milankinen/cuic/master.svg?style=flat-square)](https://travis-ci.org/milankinen/cuic)
 [![Clojars Project](https://img.shields.io/clojars/v/cuic.svg?style=flat-square)](https://clojars.org/cuic)
 
-* CI-ready - works on top of [Chrome DevTools Protocol](https://chromedevtools.github.io/devtools-protocol) and
-supports headless execution out-of-the-box
-* No DSLs or implicit waits, just data and functions to manipulate that data
-* Designed to support the idiomatic REPL workflow
-* Seamless Cursive integration (see [demo video](#TODO))
+## Motivation
 
-## Quick start
+I needed a library for writing robust and maintainable UI tests for my work 
+and hobby Clojure(Script) projects. The library had to run on top of the 
+JVM to simplify test setups and enable code sharing between the tests and 
+the application, but without the annoying WebDriver version hassle. 
 
-```clj
-; Evaluate these forms in your REPL, form by form
-(ns demo)
+The design of the current version of `cuic` is the result of countless 
+(re)written tests, various attempts to structure test code and hours
+after hours of CI test runs, driven by the following core principles:
 
-(require '[cuic.core :as c])
-(require 'cuic.repl)
+  * Utilization of Clojure core data structures and control flow instead 
+    of custom macros and DSLs
+  * Minimal and unambiguous but easily extendable API surface 
+  * Seamless integration with `clojure.test` and the tooling around it
+  * First class REPL usage
 
-(cuic.repl/launch-dev-browser! {:window-size {:width 1500 :height 1000}})
-(c/goto! "https://clojuredocs.org")
+## Show me the code!
 
-(def core-link
-  (->> (c/q ".navbar li a")
-       (filter c/visible?)
-       (filter #(= "Core Library" (c/text-content %)))
-       (first)
-       (c/wait)))
-(c/click! core-link)
+Here's a small snippet showing how to test the classic
+[TodoMVC app](http://todomvc.com/examples/react) with `cuic`
 
-(def test-lib-link
-  (->> (c/q ".library-nav li a")
-       (filter #(= "test" (c/text-content %)))
-       (first)
-       (c/wait)))
-(c/click! test-lib-link)
+```clojure 
+(ns example-todomvc-tests
+ (:require [clojure.test :refer :all]
+           [cuic.core :as c]
+           [cuic.test :refer [deftest* is* browser-test-fixture]]))
 
-(def test-var-names
-  (->> (c/wait (c/q ".var-group"))
-       (mapcat #(c/q % ".name"))
-       (map c/inner-text)
-       (sort)))
+(use-fixtures
+ :once
+ (browser-test-fixture))
 
-(do (println "Vars in clojure.test are:")
-    (doseq [var-name test-var-names]
-      (println " " var-name)))
-``` 
+(defn todos []
+ (->> (c/query ".todo-list li")
+      (map c/text-content)))
 
-## Usage
+(defn add-todo [text]
+ (doto (c/find ".new-todo")
+   (c/fill text))
+ (c/press 'Enter))
 
-`WIP...` See API docs **[here](https://cljdoc.org/d/cuic/cuic)**.
+(deftest* creating-new-todos
+ (c/goto "http://todomvc.com/examples/react")
+ (is* (= [] (todos)))
+ (add-todo "Hello world!")
+ (is* (= ["Hello world!"] (todos)))
+ (add-todo "Tsers!")
+ (is* (= ["Hello world!" "Tsers!"] (todos))))
+```
 
+## Documentation
+
+Each `cuic` function has a Clojure doc-string describing its behaviour and usage. 
+Generated API docs and guides are also available as **[cljdoc](https://cljdoc.org/d/cuic/cuic)**.
+
+## Similar projects
+
+* [Etaoin](https://github.com/igrishaev/etaoin) - Pure Clojure implementation of Webdriver protocol
+* [clj-chrome-devtools](https://github.com/tatut/clj-chrome-devtools) - Clojure wrapper over Chrome Debug Protocol
 
 ## License
 

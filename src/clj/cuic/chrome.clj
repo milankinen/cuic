@@ -108,6 +108,13 @@
                   (json/read-str :key-fn keyword))]
     (filter #(= "page" (:type %)) items)))
 
+(defn- wait-for-tabs [host port until]
+  (or (seq (list-tabs host port))
+      (if (> (System/currentTimeMillis) until)
+        (throw (CuicException. "Could not detect Chrome tabs"))
+        (do (Thread/sleep 100)
+            (recur host port until)))))
+
 (defrecord ^:no-doc Chrome
   [^Process process
    ^Thread loggers
@@ -339,15 +346,16 @@
                   (.redirectOutput ProcessBuilder$Redirect/PIPE)
                   (.redirectErrorStream true)
                   (.start))
-         loggers (start-loggers proc)]
+         loggers (start-loggers proc)
+         until (+ (System/currentTimeMillis) timeout)]
      (try
        (debug "Connecting to Chrome Devtools at port" port)
-       (when-not (wait-for-devtools {:host  "localhost"
-                                     :port  port
-                                     :until (+ (System/currentTimeMillis) timeout)})
+       (when-not (wait-for-devtools {:host "127.0.0.1" :port port :until until})
          (throw (CuicException. "Could not connect to Chrome Devtools")))
-       (let [tabs (list-tabs "localhost" port)
+       (let [tabs (wait-for-tabs "127.0.0.1" port until)
+             _ (trace "Got tabs" tabs)
              ws-url (-> tabs (first) :webSocketDebuggerUrl)
+             _ (trace "Using Devtools websocket url" ws-url)
              cdt (cdt/connect ws-url)]
          (debug "Connected to Chrome Devtools at port" port)
          (when tmp-data-dir
@@ -362,6 +370,7 @@
                    port
                    (atom {:cdt cdt :page (page/attach cdt)})))
        (catch Exception e
+         (error e "Unexpected error occurred while connecting to Chrome Devtools")
          (terminate proc)
          (delete-data-dir tmp-data-dir)
          (if (instance? CuicException e)

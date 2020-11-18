@@ -19,7 +19,7 @@
    (defn add-todo [text]
      (doto (c/find \".new-todo\")
        (c/fill text))
-     (c/type 'Enter))
+     (c/press 'Enter))
 
    (deftest* creating-new-todos
      (c/goto \"http://todomvc.com/examples/react\")

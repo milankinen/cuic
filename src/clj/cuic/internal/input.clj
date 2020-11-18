@@ -64,28 +64,23 @@
              :cmd  "Input.dispatchKeyEvent"
              :args args})))
 
-(defn- type-key [cdt key]
+(defn press-key [cdt key]
   (key-event cdt "keyDown" key)
   (Thread/sleep 10)
   (key-event cdt "keyUp" key))
 
-(defn- type-char [cdt ch]
+(defn type-char [cdt ch]
   (case ch
-    \newline (type-key cdt 'Enter)
-    \tab (type-key cdt 'Tab)
+    \newline (press-key cdt 'Enter)
+    \tab (press-key cdt 'Tab)
     (invoke {:cdt  cdt
              :cmd  "Input.dispatchKeyEvent"
              :args {:type "char" :text (str ch)}})))
 
-(defn type-one [cdt key-or-char]
-  (if (symbol? key-or-char)
-    (type-key cdt key-or-char)
-    (type-char cdt key-or-char)))
-
-(defn type-kb [cdt input chars-per-minute]
-  (when (seq input)
-    (loop [[x & xs] input]
-      (type-one cdt x)
+(defn type-text [cdt text chars-per-minute]
+  (when (seq text)
+    (loop [[ch & xs] text]
+      (type-char cdt ch)
       (when xs
         (when (pos-int? chars-per-minute)
           (Thread/sleep (/ 60000 chars-per-minute)))

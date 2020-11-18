@@ -27,7 +27,7 @@
       (is* (has-text? "Input value is: lolbal"))
       (-> (c/find "#input")
           (c/focus))
-      (c/type 'End)
+      (c/press 'End)
       (c/type "baz")
       (is* (has-text? "Input value is: lolbalbaz"))
       (-> (c/find "#input")

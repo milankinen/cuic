@@ -22,7 +22,8 @@
                                            scroll-into-view-if-needed]]
             [cuic.internal.input :refer [mouse-move
                                          mouse-click
-                                         type-kb]]
+                                         type-text
+                                         press-key]]
             [cuic.internal.html :refer [parse-document parse-element boolean-attributes]]
             [cuic.internal.util :refer [rewrite-exceptions
                                         cuic-ex
@@ -896,26 +897,17 @@
        (boolean (navigate-forward (page browser) timeout))))))
 
 (defn type
-  "Simulates keyboard typing. Typed text can be either string or a symbol
-   representing keycode of the pressed key.
-
-   In case of text, characters are pressed and released one by one using
-   the provided typing speed. Typing speed uses [[cuic.core/*typing-speed*]]
-   by default but it can be overrided by giving the speed as an option
+  "Simulates keyboard typing. Characters are pressed and released one by one
+   using the provided typing speed. Typing speed uses [[cuic.core/*typing-speed*]]
+   by default but it can be overrided by giving it as `:speed` option
    to the invocation.
 
-   In case of symbol, the symbol must be a valid keycode with optional
-   modifiers separated by '+' (see examples below). You can use e.g.
-   https://keycode.info to get desired key code (`event.code`) for the
-   typed key. The complete list of available key codes can be found from
-   https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/keyCode
-
    Note that this function is pretty low level and it **does not** focus
-   the typed text/key to any node. See [[cuic.core/fill]] for a more
-   high-level alternative.
+   the typed text to any node. See [[cuic.core/fill]] for a more high-level
+   alternative.
 
    Uses the current browser by default but it can be overrided
-   by providing browser as an option to the invocation.
+   by providing `:browser` option to the invocation.
 
    ```clojure
    ;; Type some text
@@ -926,22 +918,46 @@
 
    ;; Type some text to non-default browser
    (c/type \"Tsers!\" {:browser another-chrome})
-
-   ;; Focus on next tab index element
-   (c/type 'Tab)
-
-   ;; Focus on previous tab index element
-   (c/type 'Shift+Tab)
    ```"
   ([text] (type text {}))
   ([text opts]
    (rewrite-exceptions
-     (check-arg [#(or (string? %) (simple-symbol? %)) "string or keycode symbol"] [text "typed input"])
      (let [{:keys [browser speed]
             :or   {speed *typing-speed*}} opts
-           browser (or browser (-require-default-browser))
-           cdt (devtools browser)]
-       (type-kb cdt (if (symbol? text) [text] text) (-chars-per-minute speed))
+           browser (or browser (-require-default-browser))]
+       (check-arg [string? "string"] [text "typed text"])
+       (check-arg [chrome? "chrome instance"] [browser "browser"])
+       (type-text (devtools browser) text (-chars-per-minute speed))
+       nil))))
+
+(defn press
+  "Simulates key press of single key. The pressed key must be a symbol
+   of a valid keycode with optional modifiers separated by '+' (see
+   examples below). You can use e.g. https://keycode.info to get desired
+   key code (`event.code`) for the pressed key. The complete list of
+   available key codes can be found from
+   https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/keyCode
+
+   Uses the current browser by default but it can be overrided
+   by providing browser as a second parameter.
+
+   ```clojure
+   ;; Focus on next tab index element
+   (c/press 'Tab)
+
+   ;; Focus on previous tab index element
+   (c/press 'Shift+Tab)
+
+   ;; Focus on next tab index element in custom browser
+   (c/press 'Tab another-chrome)
+   ```"
+  ([key] (rewrite-exceptions (press key (-require-default-browser))))
+  ([key browser]
+   (rewrite-exceptions
+     (check-arg [simple-symbol? "symbol"] [key "pressed key"])
+     (check-arg [chrome? "chrome instance"] [browser "browser"])
+     (let [cdt (devtools browser)]
+       (press-key cdt key)
        nil))))
 
 (defn scroll-into-view
@@ -1134,7 +1150,7 @@
         (throw (timeout-ex "Can't clear text from node" (quoted (get-node-name node))
                            "because node is disabled")))
       (-exec-js "this.select()" {} node)
-      (type-kb (get-node-cdt node) ['Backspace] 0)
+      (press-key (get-node-cdt node) 'Backspace)
       node)))
 
 (defn fill
@@ -1148,7 +1164,8 @@
    by giving the speed as a third parameter. See [[cuic.core/*typing-speed*]]
    for valid values. Only text is allowed: if you need to type keycodes,
    use [[cuic.core/type]] instead. The exceptions are newline character
-   `\\n` and tab `\\t` that will be interpreted as their respective keycodes.
+   `\\n` and tab `\\t` that will be interpreted as their respective key
+   presses.
 
    Returns the filled node for threading.
 
@@ -1157,9 +1174,9 @@
 
    ;; Fill some text to comment and commit by pressing enter
    (c/fill comment \"Tsers\")
-   (c/type 'Enter)
+   (c/press 'Enter)
 
-   ;; Same with terser form
+   ;; Same in terser form
    (c/fill comment \"Tsers\\n\")
 
    ;; Fill text fast
@@ -1183,8 +1200,8 @@
            (throw (timeout-ex "Can't fill node" (quoted (get-node-name node))
                               "because node is disabled")))
          (-exec-js "this.select()" {} node)
-         (type-kb cdt ['Backspace] chars-per-min)
-         (type-kb cdt text chars-per-min)
+         (press-key cdt 'Backspace)
+         (type-text cdt text chars-per-min)
          node)))))
 
 (defn choose

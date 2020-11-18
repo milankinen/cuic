@@ -81,6 +81,19 @@
    ```"
   5000)
 
+(def ^:dynamic *base-url*
+  "Base url that will be prepended to [[cuic.core/goto]] url if the value does
+   not contain hostname.
+
+   Use `binding` to assign default for e.g. single test run:
+
+   ```clojure
+   (defn local-server-test-fixture [t]
+     (binding [*base-url* (str \"http://localhost:\" (get-local-server-port))]
+       (t)))
+   ```"
+  nil)
+
 (def ^:dynamic *typing-speed*
   "Default typing speed in **typed characters per minute**. Supports
    also the following preset values:
@@ -125,6 +138,14 @@
   (rewrite-exceptions
     (check-arg [nat-int? "positive integer or zero"] [timeout "timeout"])
     (alter-var-root #'*timeout* (constantly timeout))))
+
+(defn set-base-url!
+  "Globally resets the default base url. Useful for example REPL
+   usage. See [[cuic.core/*timeout*]] for more details."
+  [base-url]
+  (rewrite-exceptions
+    (check-arg [url-str? "valid url string"] [base-url "base url"])
+    (alter-var-root #'*base-url* (constantly base-url))))
 
 (defn set-typing-speed!
   "Globally resets the default typing speed. Useful for example
@@ -790,6 +811,9 @@
    exceeds. Uses [[cuic.core/*timeout*]] by default but it can be
    overrided by giving the timeout as an option to the invodation.
 
+   If [[cuic.core/*base-url*]] is set, it'll be prepended to the
+   given url if the given url does not contain hostname.
+
    Uses the current browser by default but it can be overrided
    by providing browser as an option to the invocation.
 
@@ -802,16 +826,25 @@
 
    ;; Use non-default timeout
    (c/goto \"https://clojuredocs.org\" {:timeout 300000})
+
+   ;; Go to https://clojuredocs.org/clojure.core/map using base url
+   (binding [c/*base-url* \"https://clojuredocs.org\"]
+     (c/goto \"/clojure.core/map\"))
    ```"
   ([url] (goto url {}))
   ([url opts]
    (rewrite-exceptions
      (let [{:keys [timeout browser]
             :or   {timeout *timeout*}} opts
-           browser (or browser (-require-default-browser))]
-       (check-arg [url-str? "valid url string"] [url "url"])
+           browser (or browser (-require-default-browser))
+           full-url (if (and (string? url)
+                             (not (url-str? url))
+                             *base-url*)
+                      (str *base-url* url)
+                      url)]
+       (check-arg [url-str? "valid url string"] [full-url "url"])
        (check-arg [nat-int? "positive integer or zero"] [timeout "timeout"])
-       (navigate-to (page browser) url timeout))
+       (navigate-to (page browser) full-url timeout))
      nil)))
 
 (defn go-back

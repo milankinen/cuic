@@ -213,7 +213,7 @@
        ...))
 
    (let [header (c/find \"#header\")
-         items (c/query {:from header :by \".navi-item\"})]
+         items (c/query {:in header :by \".navi-item\"})]
      ...)
    ```"
   [scope & body]
@@ -331,7 +331,7 @@
    more information by using map form:
    ```clojure
    (find {:by      <selector>  ; mandatory - CSS selector for the query
-          :from    <scope>     ; optional - root scope for query, defaults to document see cuic.core/in
+          :in      <scope>     ; optional - root scope for query, defaults to document see cuic.core/in
           :as      <name>      ; optional - name of the result node, see cuic.core/as
           :timeout <ms>        ; optional - wait timeout in ms, defaults to cuic.core/*timeout*
           })
@@ -341,7 +341,7 @@
    (c/find {:by \".navi input.search\"
             :as \"Quick search input\"})
 
-   (c/find {:from    (find \"#sidebar\")
+   (c/find {:in      (find \"#sidebar\")
             :by      \".logo\"
             :timeout 10000})
    ```"
@@ -350,17 +350,17 @@
     (check-arg [#(or (string? %) (map? %)) "string or map"] [selector "selector"])
     (loop [selector selector]
       (if (map? selector)
-        (let [{:keys [from by as timeout]
+        (let [{:keys [in by as timeout]
                :or   {timeout *timeout*}} selector
-              from (or from *query-scope* (document))
-              _ (check-arg [node? "node"] [from "from scope"])
+              ctx (or in *query-scope* (document))
+              _ (check-arg [node? "node"] [ctx "context"])
               _ (check-arg [string? "string"] [by "selector"])
               _ (check-arg [#(or (string? %) (nil? %)) "string"] [as "alias"])
               _ (check-arg [nat-int? "positive integer or zero"] [timeout "timeout"])
               cdt (devtools (-require-default-browser))
-              ctx-id (or (stale-as-nil (get-node-id from))
+              ctx-id (or (stale-as-nil (get-node-id ctx))
                          (throw (cuic-ex "Could not find node" (quoted (or as by)) "because"
-                                         "context node" (quoted (get-node-name from)) "does not"
+                                         "context node" (quoted (get-node-name ctx)) "does not"
                                          "exist anymore")))
               start-t (System/currentTimeMillis)]
           (loop []
@@ -375,12 +375,12 @@
                     (do (sleep (min 100 (- *timeout* elapsed)))
                         (recur))
                     (throw (timeout-ex "Could not find node" (quoted as) "from"
-                                       (quoted (get-node-name from)) "with selector"
+                                       (quoted (get-node-name ctx)) "with selector"
                                        (quoted by) "in" timeout "milliseconds")))
-                1 (or (stale-as-nil (wrap-node cdt {:nodeId (first node-ids)} from as by))
+                1 (or (stale-as-nil (wrap-node cdt {:nodeId (first node-ids)} ctx as by))
                       (recur))
                 (throw (cuic-ex "Found too many" (str "(" n-nodes ")") (quoted as)
-                                "nodes from" (quoted (get-node-name from))
+                                "nodes from" (quoted (get-node-name ctx))
                                 "with selector" (quoted by)))))))
         (recur {:by selector})))))
 
@@ -398,9 +398,9 @@
    In addition to plain css selector, `query` can be invoked with
    more information by using map form:
    ```clojure
-   (query {:by      <selector>  ; mandatory - CSS selector for the query
-           :from    <scope>     ; optional - root scope for query, defaults to document see cuic.core/in
-           :as      <name>      ; optional - name for the result nodes
+   (query {:by <selector>  ; mandatory - CSS selector for the query
+           :in <scope>     ; optional - root scope for query, defaults to document see cuic.core/in
+           :as <name>      ; optional - name for the result nodes
            })
 
    ;; examples
@@ -408,9 +408,9 @@
    (c/query {:by \".navi .item\"
              :as \"Navigation item\"})
 
-   (c/find {:from (find \"#sidebar\")
-            :by   \".item\"
-            :as   \"Sidebar item\"})
+   (c/find {:in (find \"#sidebar\")
+            :by \".item\"
+            :as \"Sidebar item\"})
    ```
 
    Note that unlike [[cuic.core/find]], [[cuic.core/query]] **does not
@@ -427,21 +427,21 @@
     (check-arg [#(or (string? %) (map? %)) "string or map"] [selector "selector"])
     (loop [selector selector]
       (if (map? selector)
-        (let [{:keys [from by as]} selector
-              from (or from *query-scope* (document))
-              _ (check-arg [node? "node"] [from "from scope"])
+        (let [{:keys [in by as]} selector
+              ctx (or in *query-scope* (document))
+              _ (check-arg [node? "node"] [ctx "context"])
               _ (check-arg [string? "string"] [by "selector"])
               _ (check-arg [#(or (string? %) (nil? %)) "string"] [as "alias"])
               cdt (devtools (-require-default-browser))
-              ctx-id (or (stale-as-nil (get-node-id from))
+              ctx-id (or (stale-as-nil (get-node-id ctx))
                          (throw (cuic-ex "Could not query" (quoted as) "nodes with selector"
-                                         (quoted by) "because context node" (quoted (get-node-name from))
+                                         (quoted by) "because context node" (quoted (get-node-name ctx))
                                          "does not exist anymore")))]
           (->> (invoke {:cdt  cdt
                         :cmd  "DOM.querySelectorAll"
                         :args {:nodeId ctx-id :selector by}})
                (:nodeIds)
-               (keep #(stale-as-nil (wrap-node cdt {:nodeId %} from as by)))
+               (keep #(stale-as-nil (wrap-node cdt {:nodeId %} ctx as by)))
                (vec)
                (doall)
                (not-empty)))

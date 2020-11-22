@@ -40,12 +40,12 @@
             ctx-2 (c/find "#context-2")
             named-ctx-2 (c/find {:by "#context-2"
                                  :as "Context"})]
-        (is (some? (c/find {:by "#hello" :from ctx-1})))
+        (is (some? (c/find {:by "#hello" :in ctx-1})))
         (is (some? (c/in ctx-1 (c/find "#hello"))))
         (is (thrown-with-msg?
               CuicException
               #"Could not find node from \"#context-2\" with selector \"#hello\" in \d+ milliseconds"
-              (c/find {:by "#hello" :from ctx-2})))
+              (c/find {:by "#hello" :in ctx-2})))
         (is (thrown-with-msg?
               CuicException
               #"Could not find node from \"#context-2\" with selector \"#hello\" in \d+ milliseconds"
@@ -72,9 +72,9 @@
   (testing "querying under context node"
     (let [ctx-1 (c/find "#context-1")
           ctx-2 (c/find "#context-2")]
-      (is (vector? (c/query {:by "#hello" :from ctx-1})))
+      (is (vector? (c/query {:by "#hello" :in ctx-1})))
       (is (vector? (c/in ctx-1 (c/query "#hello"))))
-      (is (nil? (c/query {:by "#hello" :from ctx-2})))
+      (is (nil? (c/query {:by "#hello" :in ctx-2})))
       (is (nil? (c/in ctx-2 (c/query "#hello")))))))
 
 (deftest* document-tests

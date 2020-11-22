@@ -9,8 +9,8 @@ Clojure UI testing with Chrome
 
 I needed a library for writing robust and maintainable UI tests for my work 
 and hobby Clojure(Script) projects. The library had to run on top of the 
-JVM to simplify test setups and enable code sharing between the tests and 
-the application, but without the annoying WebDriver version hassle. 
+JVM to simplify test setups and enable code sharing, but without the 
+annoying WebDriver version hassle. 
 
 The design of the current version of `cuic` is the result of countless 
 (re)written tests, various attempts to structure test code and hours

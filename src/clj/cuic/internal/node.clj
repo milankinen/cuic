@@ -148,9 +148,13 @@
       (:selector node)
       (try (resolve-tag node) (catch Exception _))))
 
-(defn rename [node name]
+(defn assoc-display-name [node name]
   {:pre [(node? node)]}
   (assoc node :display-name name))
+
+(defn get-node-display-name [node]
+  {:pre [(node? node)]}
+  (:display-name node))
 
 (defn get-node-cdt [node]
   (:cdt node))

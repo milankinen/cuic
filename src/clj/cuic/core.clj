@@ -1,7 +1,8 @@
 (ns cuic.core
   "Core functions for UI queries and interactions"
-  (:refer-clojure :exclude [find type])
-  (:require [clojure.string :as string]
+  (:refer-clojure :exclude [find type name])
+  (:require [clojure.core :as core]
+            [clojure.string :as string]
             [cuic.chrome :refer [chrome? devtools page]]
             [cuic.internal.cdt :refer [invoke]]
             [cuic.internal.node :refer [wrap-node
@@ -11,8 +12,9 @@
                                         stale-as-ex
                                         get-node-id
                                         get-node-name
+                                        get-node-display-name
                                         get-node-cdt
-                                        rename]]
+                                        assoc-display-name]]
             [cuic.internal.page :refer [navigate-to
                                         navigate-forward
                                         navigate-back]]
@@ -240,7 +242,15 @@
   (rewrite-exceptions
     (check-arg [string? "string"] [name "node name"])
     (check-arg [node? "dom node"] [node "renamed node"])
-    (rename node name)))
+    (assoc-display-name node name)))
+
+(defn name
+  "Returns the debug name of the given node or `nil` if debug name is
+   not set for the node."
+  [node]
+  (rewrite-exceptions
+    (check-arg [node? "dom node"] [node "target node"])
+    (get-node-display-name node)))
 
 ;;;
 ;;; core queries
@@ -1323,7 +1333,7 @@
        (let [cdt (devtools browser)
              res (invoke {:cdt     cdt
                           :cmd     "Page.captureScreenshot"
-                          :args    {:format      (name format)
+                          :args    {:format      (core/name format)
                                     :quality     quality
                                     :fromSurface true}
                           :timeout timeout})]

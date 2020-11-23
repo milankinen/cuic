@@ -1,6 +1,8 @@
 (defproject cuic "0.6.0-20201123.2"
   :description "Concise UI testing with Clojure"
   :url "https://github.com/milankinen/cuic"
+  :scm {:name "git"
+        :url  "https://github.com/milankinen/cuic"}
   :license {:name "MIT"
             :url  "https://opensource.org/licenses/MIT"}
   :signing {:gpg-key "9DD8C3E9"}

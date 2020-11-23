@@ -1,0 +1,11 @@
+<configuration debug="false">
+  <appender name="LOG" class="ch.qos.logback.core.FileAppender">
+    <file>target/debug.log</file>
+    <encoder>
+      <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level %-10contextName %logger{36} - %msg%n</pattern>
+    </encoder>
+  </appender>
+  <root level="info">
+    <appender-ref ref="LOG"/>
+  </root>
+</configuration>

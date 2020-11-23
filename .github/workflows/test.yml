@@ -22,6 +22,8 @@ jobs:
         run: lein build-js
       - name: Run tests
         run: lein t
+      - name: Run linter
+        run: lein lint
       - uses: actions/upload-artifact@v2
         if: failure()
         with:

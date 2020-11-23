@@ -18,7 +18,8 @@
                      [http-kit "2.5.0"]
                      [compojure "1.6.2"]
                      [ch.qos.logback/logback-classic "1.2.3"]
-                     [eftest "0.5.9"]]
+                     [eftest "0.5.9"]
+                     [clj-kondo "2020.11.07"]]
                     :repl-options
                     {:init-ns repl}
                     :plugins
@@ -30,5 +31,6 @@
                         ["snapshots" :clojars]]
   :aliases {"test"     ["trampoline" "run" "-m" "test-runner/run-tests-cli"]
             "build-js" ["shell" "./src/js/build.sh"]
-            "t"        ["test"]}
+            "t"        ["test"]
+            "lint"     ["trampoline" "run" "-m" "clj-kondo.main" "--lint" "src" "test"]}
   :release-tasks [["deploy"]])

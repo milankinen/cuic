@@ -12,3 +12,4 @@ pom.xml.asc
 /src/js/node_modules
 /src/js/build
 .DS_Store
+/.clj-kondo/.cache

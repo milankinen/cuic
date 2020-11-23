@@ -13,11 +13,11 @@ JVM to simplify test setups and enable code sharing, but without the
 annoying WebDriver version hassle. 
 
 The design of the current version of `cuic` is the result of countless 
-(re)written tests, various attempts to structure test code and hours
-after hours of CI test runs, driven by the following core principles:
+(re)written tests, hours after hours of CI test runs and enless debug
+sessions, driven by the following core principles:
 
-  * Utilization of Clojure core data structures and control flow instead 
-    of custom macros and DSLs
+  * Utilization of Clojure core data structures and language features 
+    instead of custom macros and DSLs
   * Minimal and unambiguous but easily extendable API surface 
   * Seamless integration with `clojure.test` and the tooling around it
   * First class REPL usage
@@ -63,7 +63,7 @@ Generated API docs and guides are also available as **[cljdoc](https://cljdoc.or
 ## Similar projects
 
 * [Etaoin](https://github.com/igrishaev/etaoin) - Pure Clojure implementation of Webdriver protocol
-* [clj-chrome-devtools](https://github.com/tatut/clj-chrome-devtools) - Clojure wrapper over Chrome Debug Protocol
+* [clj-chrome-devtools](https://github.com/tatut/clj-chrome-devtools) - Clojure wrapper for Chrome Debug Protocol
 
 ## License
 

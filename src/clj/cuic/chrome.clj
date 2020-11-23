@@ -362,6 +362,7 @@
            (doto (.toFile tmp-data-dir)
              (.deleteOnExit)))
          (runtime/initialize cdt)
+         (cdt/invoke {:cdt cdt :cmd "Network.enable" :args {}})
          (->Chrome proc
                    loggers
                    args
@@ -383,3 +384,28 @@
   [chrome]
   {:pre [(chrome? chrome)]}
   (:cdt (get-tools chrome)))
+
+(defn set-cache-disabled
+  "Toggles ignoring cache for each request. If `true`, cache
+   will not be used."
+  [chrome disabled?]
+  {:pre [(chrome? chrome)
+         (boolean? disabled?)]}
+  (cdt/invoke {:cdt  (devtools chrome)
+               :cmd  "Network.setCacheDisabled"
+               :args {:cacheDisabled disabled?}})
+  nil)
+
+(s/def ::http-headers
+  (s/map-of string? string?))
+
+(defn set-extra-headers
+  "Specifies whether to always send extra HTTP headers with the requests from
+   this page. Can be used e.g. for impersonation in your tests."
+  [chrome http-headers]
+  {:pre [(chrome? chrome)
+         (s/valid? ::http-headers http-headers)]}
+  (cdt/invoke {:cdt  (devtools chrome)
+               :cmd  "Network.setExtraHTTPHeaders"
+               :args {:headers (into {} http-headers)}})
+  nil)

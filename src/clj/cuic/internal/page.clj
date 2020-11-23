@@ -1,6 +1,5 @@
 (ns ^:no-doc cuic.internal.page
-  (:require [cuic.internal.cdt :refer [invoke on off cdt-promise]]
-            [cuic.internal.util :refer [cuic-ex]])
+  (:require [cuic.internal.cdt :refer [invoke on off cdt-promise]])
   (:import (java.lang AutoCloseable)))
 
 (set! *warn-on-reflection* true)
@@ -13,15 +12,13 @@
 (defn- main-frame-id [page]
   (get-in @(:state page) [:main-frame :id]))
 
-(defn- handle-lifecycle-event [state {:keys [name frameId] :as event}]
+(defn- handle-lifecycle-event [state {:keys [name frameId]}]
   (letfn [(handle [{:keys [main-frame] :as s}]
             (if (= (:id main-frame) frameId)
               (if (= "init" name)
                 (assoc s :events #{})
                 (update s :events conj name))
               s))]
-    #_(when (= frameId (:id (:main-frame @state)))
-        (clojure.pprint/pprint event))
     (swap! state handle)))
 
 (defn- handle-event [state method params]

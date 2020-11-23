@@ -2,7 +2,7 @@
   (:require [clojure.test :refer :all]
             [clojure.string :as string]
             [cuic.core :as c]
-            [cuic.test :refer [deftest* is* browser-test-fixture]]
+            [cuic.test :refer [deftest* browser-test-fixture]]
             [test-common :refer [todos-url]])
   (:import (javax.imageio ImageIO)
            (java.io ByteArrayInputStream)))

@@ -1,0 +1,3 @@
+{:linters {:refer-all {:exclude [clojure.test]}}
+ :lint-as {cuic.test/deftest* clojure.test/deftest
+           cuic.test/is*      clojure.test/is}}

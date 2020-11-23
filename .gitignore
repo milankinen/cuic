@@ -13,3 +13,4 @@ pom.xml.asc
 /src/js/build
 .DS_Store
 /.clj-kondo/.cache
+/.release-cache

@@ -17,8 +17,11 @@ apt install -y nodejs
 ./lein deploy clojars
 ' > target/entrypoint.sh
 
+mkdir -p .release-cache
+
 docker run --rm -ti \
   -v $(cd $(dirname $0) && pwd):/build \
+  -v $(cd $(dirname $0) && pwd)/.release-cache:/root/.m2 \
   -v $HOME/.gnupg:/gnupg:ro \
   -w /build \
   openjdk:8-jdk \

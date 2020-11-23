@@ -7,6 +7,7 @@
             :url  "https://opensource.org/licenses/MIT"}
   :signing {:gpg-key "9DD8C3E9"}
   :clean-targets ^{:protect false} [:target-path "src/js/node_modules" "src/js/build"]
+  :auto-clean false
   :dependencies
   [[org.clojure/tools.logging "1.1.0"]
    [org.clojure/data.json "1.0.0"]

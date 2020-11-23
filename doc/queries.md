@@ -1,17 +1,18 @@
-## Queries and DOM nodes
+## Queries and HTML elements
 
-Queries provide access to the Chrome page and its DOM nodes. They're the essential
-part of `cuic` because every action or check needs a DOM node instance. DOM 
-nodes are data structures that contain a handle to the actual page's DOM node.
-The most important queries are `cuic.core/find` and `cuic.core/query`. 
+Queries provide access to the Chrome page and its DOM. They're the essential
+part of `cuic` because every action and data access need an HTML element from 
+DOM. In `cuic`, HTML elements are represented as data structures that contain 
+a handle to the actual page's DOM node. The most important queries are 
+`cuic.core/find` and `cuic.core/query`. 
 
 ### `cuic.core/find`
 
 `find` is the workhorse of `cuic`. The majority of UI test use cases are 
-interactions with single node, such as "clicking the save button" or "checking 
+interactions with single element, such as "clicking the save button" or "checking 
 that the popup is open" hence `find` provides a convenient way for finding single
-node from the page. It works like JavaScript's `document.querySelector`, taking
-a valid CSS selector and returning a DOM node that matches the selector.
+element from the page. It works like JavaScript's `document.querySelector`, taking
+a valid CSS selector and returning an HTML element that matches the selector.
 
 ```clojure 
 (let [save-btn (c/find "#save-btn")]
@@ -27,26 +28,27 @@ a valid CSS selector and returning a DOM node that matches the selector.
   (c/fill "tsers!"))
 ```
 
-Sometimes the target node may appear in DOM after some time (e.g. after a successful
-AJAX request), thus `find` tries to wait for the selector if the node is not present 
-immediately, but timeouts after a certain period (see `cuic.core/*timeout*`). 
+Sometimes the target element may appear in DOM after some time (e.g. after a 
+successful AJAX request), thus `find` tries to wait for the selector if the 
+element is not found immediately, but timeouts after a certain period 
+(see [configuration](./configuration.md) for info). 
 
 ```clojure 
 (c/click (c/find "#save-btn"))
 (is (= "Saved!" (c/text-content (c/find "#status-text"))))
 ```
 
-`find` expects **exactly one** node to be found. If the selector matches multiple
-nodes, `find` throws an exception. If you need to find multiple nodes, see 
-`cuic.core/query` description below.
+`find` expects **exactly one** element to be found. If the selector matches 
+multiple elements, `find` throws an exception. If you need to find multiple 
+elements, see `cuic.core/query` description below.
 
 ### `cuic.core/query`
 
-Whereas `find` is meant for getting single node, `query` provides a way to search 
-for multiple nodes matching the certain selector. Unlike `find`, it **does not** 
-wait for anything: if there are no nodes matching the given selector at the time
-of invocation, `query` returns `nil`. If there are some matching nodes, a vector of
-those nodes is returned.
+Whereas `find` is meant for getting single html element, `query` provides a way 
+to search for multiple elements matching the certain selector. Unlike `find`, 
+it **does not** wait: if there are no elements matching the given selector at the time
+of invocation, `query` returns `nil`. If there are some matching elements, those
+elements are returned as a vector.
 
 **OBS!** Pay special attention to the asynchrony when using `query`. Because `query` 
 does not wait anything, it's extremely easy to make flaky tests by expecting something
@@ -99,7 +101,7 @@ with `cuic.core/wait` to eliminate the effects of asynchrony.
 
 ## Querying in context
 
-Eventually there will be cases where you want to access a DOM node that can't
+Eventually there will be cases where you want to access an element that can't
 be identified uniquely, for example remove the second "todo item" by clicking
 its remove button. Writing selectors such as `.todo-item:nth-child(1) button.remove`
 quickly become a maintenance hell, and your tests start falling apart. Because 
@@ -125,7 +127,7 @@ equivalent.
 ```
 
 However, when the application and the test cases become more complex, passing 
-the context node around starts to produce boilerplate and hinder the 
+the context element around starts to produce boilerplate and hinder the 
 maintainability of your tests. 
 
 ```clojure 
@@ -176,11 +178,11 @@ specific utility functions:
   (fill-text "Bio" "tsers!")))
 ```  
 
-## Naming nodes
+## Naming elements
 
-Naming nodes is entirely optional, although it greatly improves the debugging
-in case of failures. If, for example, the clicked node is not visible, `cuic`
-throws an exception using node's selector in the error message. If selector is
+Naming elements is entirely optional, although it greatly improves the debugging
+in case of failures. If, for example, the clicked element is not visible, `cuic`
+throws an exception using element's selector in the error message. If selector is
 complex or queried from the context (see above), the error message might be hard
 to interpret from e.g. CI output.  
 
@@ -192,22 +194,22 @@ to interpret from e.g. CI output.
        (c/wait)))
 
 ;; If save button is disabled the following exception is thrown:
-;; => Can't click node "button" because node is not visible
+;; => Can't click element "button" because it is not visible
 (c/click (button-by-text "Save"))
 
 ;;;;;
 
 (defn button-by-text [text]
   (->> (c/query {:by "button" 
-                 ;; Assign name to the queried nodes
+                 ;; Assign name to the queried elements
                  :as (str text " button")})  
        (filter #(string/includes? (c/text-content %) text))
        (first)
        (c/wait)))
 
-;; => Can't click node "Save button" because node is not visible
+;; => Can't click element "Save button" because it is not visible
 (c/click (button-by-text "Save"))
 ```
 
-Both `find` and `query` support `:as <name>` option. Node can also be renamed
-with `c/as` and the assigned name is retrievable in code with `c/name`.
+Both `find` and `query` support `:as <name>` option. Element can also be 
+renamed with `c/as` and the assigned name is retrievable in code with `c/name`.

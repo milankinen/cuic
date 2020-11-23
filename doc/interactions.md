@@ -1,6 +1,6 @@
 ## Interacting with DOM
 
-After you've obtained a DOM node by using a [query](./queries.md), you can 
+After you've obtained an HTML element with [query](./queries.md), you can 
 interact with it: read its properties (e.g. classes or attributes) or perform 
 some actions to it (e.g. click it). `cuic` doesn't provide any ready-made 
 DSLs like `click("#my-button").having({text: "Save"}).and.then.is({visible: true})`.
@@ -9,8 +9,8 @@ by using the supplied core building blocks and Clojure language primitives.
 
 ### Reading DOM properties
 
-`cuic` provides various functions for DOM data reading. In order to use 
-these fucntions you need a handle to an existing DOM node by using either 
+`cuic` provides various functions for DOM data inspection. In order to use 
+these fucntions you need a handle to an existing element by using either 
 `find` or `query`:
 
 ```clojure 
@@ -46,7 +46,7 @@ these fucntions you need a handle to an existing DOM node by using either
 (is (= ["lol "bal] (map todo-text (todos))))
 ```
 
-Function calls do not perform any implicit waiting. Instead, they 
+Reading DOM does not perform any implicit waiting. Instead, each function 
 return the state as it is during the invocation time. Note that due 
 to the mutable nature of DOM, read functions are **not** referentially 
 transparent. In other words, subsequent calls may return different 
@@ -54,9 +54,9 @@ results if the DOM changes between the calls. You must take this
 into account when implementing your functions and assertions: use 
 `cuic.core/wait` to eliminate the issues with asynchrony when you're 
 expecting something to be found. Read functions do not perform any 
-mutations to the DOM so its  safe to call them multiple times. However, 
-pay attention that the referenced DOM node does not get removed from 
-the DOM; in such case `cuic` will throw an exception.
+mutations to the DOM making them safe to call multiple times. However, 
+pay attention that the target element does not get removed from the 
+DOM; in such case `cuic` will throw an exception.
 
 To see the complete list of read functions, see `cuic.core` reference
 from the [API docs](https://cljdoc.org/d/cuic/cuic). 
@@ -64,9 +64,9 @@ from the [API docs](https://cljdoc.org/d/cuic/cuic).
 ### Performing actions
 
 Actions simulate the user behaviour on the page: clicks, typing, focusing
-on nodes, scrolling, etc... Like reading function, actions require a 
-handle to the target DOM node. However, unlike reading functions, actions 
-may implicitly wait until the target node condition enables the specific 
+on elements, scrolling, etc... Like reading function, actions require a 
+handle to the target element. However, unlike reading functions, actions 
+may implicitly wait until the target element condition enables the specific 
 action: for example `(c/click save-btn)` will wait until the `save-btn` 
 becomes visible and enabled. If the required condition is not satisfied
 within the defined timeout (see [configuration](./configuration.md) for
@@ -76,7 +76,7 @@ more details), action fails with an exception.
 careful to call them only once. In other words, do **not** place any
 actions inside `cuic.core/wait` or results may be devastating. 
 
-All built-in node actions take the target node as a first argument, so 
+All built-in actions take the target element as a first argument, so 
 they work well with Clojure's built-in `doto` macro. 
 
 ```clojure 
@@ -101,8 +101,8 @@ expressions on the page and get results back as Clojure data structures.
 `eval-js` expects an *expression* and returns the result of that expression.
 Expression may be parametrized but both the parameters and the return value
 must be serializable JSON values. The evaluated expression may, however,
-have `this` binding rebound to a queried DOM node, allowing access to the 
-node's properties. By default, `this` is bound to `c/window` object.
+use element as `this` binding, allowing access to the element's properties.
+By default, `this` is bound to `c/window` object.
 
 ```clojure 
 (defn title-parts [separator]

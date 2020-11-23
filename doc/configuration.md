@@ -60,7 +60,7 @@ and `binding` blocks in your fixture:
 
 This configuration variable controls the timeout value (in milliseconds) 
 that queries and actions use when they wait for dom to be ready to satisfy
-their requirements (e.g. node appears in dom or becomes visible and enabled
+their requirements (e.g. element appears in dom or becomes visible and enabled
 for clicking). Generally you want to configure this variable to be as small
 as you can in your local development environment but because CI machines 
 tend to be slower, increasing the value to make tests more robust against 

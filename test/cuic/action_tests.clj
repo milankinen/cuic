@@ -88,7 +88,7 @@
     (binding [c/*timeout* 100]
       (is (thrown-with-msg?
             CuicException
-            #"Can't fill node .+"
+            #"Can't fill element .+"
             (c/fill (c/find "#input-to-activate") "tsers"))))))
 
 

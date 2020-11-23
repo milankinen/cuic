@@ -1,7 +1,7 @@
 (ns ^:no-doc cuic.internal.runtime
   (:require [clojure.string :as string]
             [clojure.java.io :as io]
-            [cuic.internal.node :refer [node? get-object-id get-node-cdt]]
+            [cuic.internal.dom :refer [element? get-object-id get-element-cdt]]
             [cuic.internal.util :refer [cuic-ex safe-str]]
             [cuic.internal.cdt :refer [invoke]])
   (:import (cuic DevtoolsProtocolException)
@@ -82,15 +82,15 @@
            return-by-value true}}]
   {:pre [(string? code)
          (or (window? this)
-             (node? this))]}
+             (element? this))]}
   (try
     (validate-args args)
     (let [sorted-args (sort-by first args)
           args-s (string/join ", " (map (comp name first) sorted-args))
-          cdt (if (node? this)
-                (get-node-cdt this)
+          cdt (if (element? this)
+                (get-element-cdt this)
                 (:cdt this))
-          object-id (if (node? this)
+          object-id (if (element? this)
                       (get-object-id this)
                       (get-window-object-id this))
           result (invoke {:cdt  cdt
@@ -109,7 +109,7 @@
                         "as return value"))
         (throw ex)))))
 
-(defn scroll-into-view-if-needed [node]
-  {:pre [(node? node)]}
+(defn scroll-into-view-if-needed [element]
+  {:pre [(element? element)]}
   (exec-js-code {:code "return __CUIC__.scrollIntoView(this)"
-                 :this node}))
+                 :this element}))

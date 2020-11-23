@@ -1,4 +1,4 @@
-(ns ^:no-doc cuic.internal.node
+(ns ^:no-doc cuic.internal.dom
   (:require [cuic.internal.cdt :refer [invoke ex-code]]
             [clojure.string :as string])
   (:import (java.io Writer)
@@ -72,9 +72,9 @@
                              (seq))]
            (str "." (string/join "." cls))))))
 
-(defrecord Node [cdt object-id display-name selector])
+(defrecord Element [cdt object-id custom-name selector])
 
-(defmethod print-method Node [{:keys [display-name selector] :as node} writer]
+(defmethod print-method Element [{:keys [custom-name selector] :as node} writer]
   (let [base-props
         (try
           {:tag (resolve-tag node)}
@@ -86,9 +86,9 @@
               {:error (ex-message ex)})))
         print-props
         (cond-> base-props
-                display-name (assoc :name display-name)
+                custom-name (assoc :name custom-name)
                 selector (assoc :selector selector))]
-    (.write ^Writer writer ^String (str "#node " (pr-str print-props)))))
+    (.write ^Writer writer ^String (str "#element " (pr-str print-props)))))
 
 
 ;;
@@ -105,56 +105,57 @@
      (catch StaleNodeException ex#
        (throw ~ex))))
 
-(defn node?
+(defn element?
   "Returns boolean whether the given value is valid remote
-   node or not"
+   cuic html element or not"
   [val]
-  (instance? Node val))
+  (instance? Element val))
 
-(defn maybe-node? [val]
-  (or (node? val)
+(defn maybe-element? [val]
+  (or (element? val)
       (nil? val)))
 
-(defn wrap-node
-  "Creates a new remote node wrapper, referenced by node's
+(defn wrap-element
+  "Creates a new remote html element wrapper, referenced by element's
    backend node id"
-  [cdt {:keys [nodeId backendNodeId objectId] :as lookup} context display-name selector]
+  [cdt {:keys [nodeId backendNodeId objectId] :as lookup} context custom-name selector]
   {:pre [(some? cdt)
-         (or (node? context)
+         (or (element? context)
              (nil? context))]}
   (cond
     (some? objectId)
     (let [sel (when-let [parts (seq (filter some? [(:selector context) selector]))]
                 (string/join " " parts))]
-      (->Node cdt objectId display-name sel))
+      (->Element cdt objectId custom-name sel))
     (or (some? backendNodeId)
         (some? nodeId))
-    (recur cdt {:objectId (resolve-object-id cdt lookup)} context display-name selector)
+    (recur cdt {:objectId (resolve-object-id cdt lookup)} context custom-name selector)
     :else nil))
 
-(defn get-object-id [{:keys [cdt object-id] :as node}]
-  {:pre [(node? node)]}
+(defn get-object-id [{:keys [cdt object-id] :as elem}]
+  {:pre [(element? elem)]}
   (check-in-dom cdt object-id)
-  (:object-id node))
+  (:object-id elem))
 
-(defn get-node-id [{:keys [cdt object-id] :as node}]
-  {:pre [(node? node)]}
+(defn get-node-id [{:keys [cdt object-id] :as elem}]
+  {:pre [(element? elem)]}
   (check-in-dom cdt object-id)
   (resolve-node-id cdt object-id))
 
-(defn get-node-name [node]
-  {:pre [(node? node)]}
-  (or (:display-name node)
-      (:selector node)
-      (try (resolve-tag node) (catch Exception _))))
+(defn get-element-name [elem]
+  {:pre [(element? elem)]}
+  (or (:custom-name elem)
+      (:selector elem)
+      (try (resolve-tag elem) (catch Exception _))))
 
-(defn assoc-display-name [node name]
-  {:pre [(node? node)]}
-  (assoc node :display-name name))
+(defn assoc-custom-name [elem name]
+  {:pre [(element? elem)]}
+  (assoc elem :custom-name name))
 
-(defn get-node-display-name [node]
-  {:pre [(node? node)]}
-  (:display-name node))
+(defn get-custom-name [elem]
+  {:pre [(element? elem)]}
+  (:custom-name elem))
 
-(defn get-node-cdt [node]
-  (:cdt node))
+(defn get-element-cdt [elem]
+  {:pre [(element? elem)]}
+  (:cdt elem))

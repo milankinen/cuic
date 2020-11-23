@@ -19,7 +19,7 @@
         (c/clear-text (c/find "#delayed-node-trigger"))
         (assert (not "Exception was not thrown"))
         (catch CuicException ex
-          (is (= "Node \"#delayed-node-trigger\" is not a valid input element"
+          (is (= "\"#delayed-node-trigger\" is not a valid input element"
                  (ex-message ex)))
           (let [st (seq (.getStackTrace ex))]
             (is (string/starts-with? (str (first st)) "cuic.core$clear_text"))))))))

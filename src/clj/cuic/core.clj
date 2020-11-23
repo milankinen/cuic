@@ -5,16 +5,16 @@
             [clojure.string :as string]
             [cuic.chrome :refer [chrome? devtools page]]
             [cuic.internal.cdt :refer [invoke]]
-            [cuic.internal.node :refer [wrap-node
-                                        node?
-                                        maybe-node?
-                                        stale-as-nil
-                                        stale-as-ex
-                                        get-node-id
-                                        get-node-name
-                                        get-node-display-name
-                                        get-node-cdt
-                                        assoc-display-name]]
+            [cuic.internal.dom :refer [wrap-element
+                                       element?
+                                       maybe-element?
+                                       stale-as-nil
+                                       stale-as-ex
+                                       get-node-id
+                                       get-element-name
+                                       get-custom-name
+                                       get-element-cdt
+                                       assoc-custom-name]]
             [cuic.internal.page :refer [navigate-to
                                         navigate-forward
                                         navigate-back]]
@@ -117,7 +117,7 @@
   :normal)
 
 (def ^:dynamic *query-scope*
-  "DOM node that acts as a root node for [[cuic.core/find]] and
+  "HTML element that acts as a root scope for [[cuic.core/find]] and
    [[cuic.core/query]] queries, unless othewise specified at query
    invocation time. Setting this value to `nil` indicates that
    queries should use document scope by default.
@@ -194,15 +194,15 @@
 
 (defn timeout-ex?
   "Return true if the given exception is caused by timeout while waiting
-   for certain condition, for example node becoming visible before click
+   for certain condition, for example element becoming visible before click
    or custom condition from [[cuic.core/wait]]."
   [ex]
   (instance? TimeoutException ex))
 
 (defmacro in
-  "Macro that runs its body using the given node as \"root scope\"
-   for queries: all matching elements must be found under the node.
-   Scope must be a valid DOM node or otherwise an exception will
+  "Macro that runs its body using the given element as \"root scope\"
+   for queries: all matching elements must be found under the element.
+   Scope must be a valid HTML element or otherwise an exception will
    be thrown.
 
    ```clojure
@@ -218,13 +218,13 @@
    ```"
   [scope & body]
   `(rewrite-exceptions
-     (let [root-node# ~scope]
-       (check-arg [node? "dom node"] [root-node# "scope root"])
-       (binding [*query-scope* root-node#]
+     (let [root-elem# ~scope]
+       (check-arg [element? "html element"] [root-elem# "scope root"])
+       (binding [*query-scope* root-elem#]
          ~@body))))
 
 (defn as
-  "Assigns a new debug name for the give node. The assigned name
+  "Assigns a new custom name for the give element. The assigned name
    will be displayed in REPL and in error messages but it does
    not have any effect on other behaviour.
 
@@ -238,19 +238,19 @@
    then the name will be displayed in error message if `find` fails
    for some reason. See [[cuic.core/find]] and [[cuic.core/query]] for
    more details."
-  [node name]
+  [element name]
   (rewrite-exceptions
-    (check-arg [string? "string"] [name "node name"])
-    (check-arg [node? "dom node"] [node "renamed node"])
-    (assoc-display-name node name)))
+    (check-arg [string? "string"] [name "element name"])
+    (check-arg [element? "html element"] [element "renamed element"])
+    (assoc-custom-name element name)))
 
 (defn name
-  "Returns the debug name of the given node or `nil` if debug name is
-   not set for the node."
-  [node]
+  "Returns the custom name of the given element or `nil` if debug name is
+   not set for the element."
+  [element]
   (rewrite-exceptions
-    (check-arg [node? "dom node"] [node "target node"])
-    (get-node-display-name node)))
+    (check-arg [element? "html element"] [element "target element"])
+    (get-custom-name element)))
 
 ;;;
 ;;; core queries
@@ -274,7 +274,7 @@
      (get-window (devtools browser)))))
 
 (defn document
-  "Returns a document object (DOM node) for the current default
+  "Returns a document object (HTML element) for the current default
    browser. Default browser can be overriden by providing browser
    explicitly as a parameter."
   ([] (rewrite-exceptions (document (-require-default-browser))))
@@ -285,13 +285,13 @@
            res (invoke {:cdt  cdt
                         :cmd  "DOM.getDocument"
                         :args {:depth 0}})
-           doc (wrap-node cdt (:root res) nil "document" nil)]
+           doc (wrap-element cdt (:root res) nil "document" nil)]
        (when (nil? doc)
          (throw (cuic-ex "Cound not get page document")))
        (vary-meta doc assoc ::document? true)))))
 
 (defn active-element
-  "Returns active element (DOM node) for the current default
+  "Returns active element (HTML element) for the current default
    browser or `nil` if there are no active elements in the
    page at the moment. Default browser can be overriden by
    providing browser explicitly as a parameter."
@@ -299,23 +299,23 @@
   ([browser]
    (rewrite-exceptions
      (stale-as-ex (cuic-ex "Couldn't get active element")
-       (check-arg [chrome? "chrome instance"] [browser "given browser"])
-       (let [cdt (devtools browser)
-             res (invoke {:cdt  cdt
-                          :cmd  "Runtime.evaluate"
-                          :args {:expression "document.activeElement"}})
-             obj (:result res)]
-         (when obj
-           (when-let [node (-> (invoke {:cdt  cdt
-                                        :cmd  "DOM.describeNode"
-                                        :args (select-keys obj [:objectId])})
-                               (:node))]
-             (wrap-node cdt node nil (:description obj) nil))))))))
+                  (check-arg [chrome? "chrome instance"] [browser "given browser"])
+                  (let [cdt (devtools browser)
+                        res (invoke {:cdt  cdt
+                                     :cmd  "Runtime.evaluate"
+                                     :args {:expression "document.activeElement"}})
+                        obj (:result res)]
+                    (when obj
+                      (when-let [node (-> (invoke {:cdt  cdt
+                                                   :cmd  "DOM.describeNode"
+                                                   :args (select-keys obj [:objectId])})
+                                          (:node))]
+                        (wrap-element cdt node nil (:description obj) nil))))))))
 
 (defn find
-  "Tries to find **exactly one** element by the given css selector
-   and throws an exception element wasn't found **or** there are
-   multiple elements matching the selector.
+  "Tries to find **exactly one** html element by the given css
+   selector and throws an exception element wasn't found **or**
+   there are multiple elements matching the selector.
 
    If any element is not found from the DOM, `find` tries to wait
    for it until the element appears to the DOM or timeout exceeds.
@@ -332,7 +332,7 @@
    ```clojure
    (find {:by      <selector>  ; mandatory - CSS selector for the query
           :in      <scope>     ; optional - root scope for query, defaults to document see cuic.core/in
-          :as      <name>      ; optional - name of the result node, see cuic.core/as
+          :as      <name>      ; optional - name of the result element, see cuic.core/as
           :timeout <ms>        ; optional - wait timeout in ms, defaults to cuic.core/*timeout*
           })
 
@@ -353,14 +353,14 @@
         (let [{:keys [in by as timeout]
                :or   {timeout *timeout*}} selector
               ctx (or in *query-scope* (document))
-              _ (check-arg [node? "node"] [ctx "context"])
+              _ (check-arg [element? "html element"] [ctx "context"])
               _ (check-arg [string? "string"] [by "selector"])
               _ (check-arg [#(or (string? %) (nil? %)) "string"] [as "alias"])
               _ (check-arg [nat-int? "positive integer or zero"] [timeout "timeout"])
               cdt (devtools (-require-default-browser))
               ctx-id (or (stale-as-nil (get-node-id ctx))
-                         (throw (cuic-ex "Could not find node" (quoted (or as by)) "because"
-                                         "context node" (quoted (get-node-name ctx)) "does not"
+                         (throw (cuic-ex "Could not find element" (quoted (or as by)) "because"
+                                         "context element" (quoted (get-element-name ctx)) "does not"
                                          "exist anymore")))
               start-t (System/currentTimeMillis)]
           (loop []
@@ -374,20 +374,21 @@
                 0 (if (< elapsed timeout)
                     (do (sleep (min 100 (- *timeout* elapsed)))
                         (recur))
-                    (throw (timeout-ex "Could not find node" (quoted as) "from"
-                                       (quoted (get-node-name ctx)) "with selector"
+                    (throw (timeout-ex "Could not find element" (quoted as) "from"
+                                       (quoted (get-element-name ctx)) "with selector"
                                        (quoted by) "in" timeout "milliseconds")))
-                1 (or (stale-as-nil (wrap-node cdt {:nodeId (first node-ids)} ctx as by))
+                1 (or (stale-as-nil (wrap-element cdt {:nodeId (first node-ids)} ctx as by))
                       (recur))
                 (throw (cuic-ex "Found too many" (str "(" n-nodes ")") (quoted as)
-                                "nodes from" (quoted (get-node-name ctx))
+                                "html elements from" (quoted (get-element-name ctx))
                                 "with selector" (quoted by)))))))
         (recur {:by selector})))))
 
 (defn query
-  "Works like [[cuic.core/find]] but returns 0..n nodes matching
+  "Works like [[cuic.core/find]] but returns 0..n elements matching
    the given css selector. In case of no results, `nil` will be
-   returned, otherwise the return value is a vector of DOM nodes.
+   returned, otherwise the return value is a vector of matching
+   HTML elements.
 
    Basic usage:
    ```clojure
@@ -400,7 +401,7 @@
    ```clojure
    (query {:by <selector>  ; mandatory - CSS selector for the query
            :in <scope>     ; optional - root scope for query, defaults to document see cuic.core/in
-           :as <name>      ; optional - name for the result nodes
+           :as <name>      ; optional - name for the result elements
            })
 
    ;; examples
@@ -414,7 +415,7 @@
    ```
 
    Note that unlike [[cuic.core/find]], [[cuic.core/query]] **does not
-   wait** for the results: if there are zero nodes matching the given
+   wait** for the results: if there are zero elements matching the given
    selector at the query time, the result set will be `nil`. If some
    results are expected, use [[cuic.core/query]] in conjunction with
    [[cuic.core/wait]] e.g.
@@ -429,19 +430,19 @@
       (if (map? selector)
         (let [{:keys [in by as]} selector
               ctx (or in *query-scope* (document))
-              _ (check-arg [node? "node"] [ctx "context"])
+              _ (check-arg [element? "html element"] [ctx "context"])
               _ (check-arg [string? "string"] [by "selector"])
               _ (check-arg [#(or (string? %) (nil? %)) "string"] [as "alias"])
               cdt (devtools (-require-default-browser))
               ctx-id (or (stale-as-nil (get-node-id ctx))
-                         (throw (cuic-ex "Could not query" (quoted as) "nodes with selector"
-                                         (quoted by) "because context node" (quoted (get-node-name ctx))
+                         (throw (cuic-ex "Could not query" (quoted as) "elements with selector"
+                                         (quoted by) "because context element" (quoted (get-element-name ctx))
                                          "does not exist anymore")))]
           (->> (invoke {:cdt  cdt
                         :cmd  "DOM.querySelectorAll"
                         :args {:nodeId ctx-id :selector by}})
                (:nodeIds)
-               (keep #(stale-as-nil (wrap-node cdt {:nodeId %} ctx as by)))
+               (keep #(stale-as-nil (wrap-element cdt {:nodeId %} ctx as by)))
                (vec)
                (doall)
                (not-empty)))
@@ -465,7 +466,8 @@
    take arguments from Clojure code.
 
    By default `this` refers to the [[cuic.core/window]] of the current
-   default browser but it may be rebound to any node or window object.
+   default browser but it may be rebound to any html element or window
+   object.
 
    Arguments serializable JSON values:
     * `nil` (will be converted to `null`
@@ -510,10 +512,10 @@
    (rewrite-exceptions
      (check-arg [string? "string"] [expr "expression"])
      (check-arg [map? "map"] [args "call arguments"])
-     (check-arg [#(or (node? %) (window? %)) "node or window"] [this "this binding"])
+     (check-arg [#(or (element? %) (window? %)) "html element or window object"] [this "this binding"])
      (stale-as-ex (cuic-ex "Can't evaluate JavaScript expression on" (quoted this)
                            "because it does not exist anymore")
-       (-exec-js (str "return " expr ";") args this)))))
+                  (-exec-js (str "return " expr ";") args this)))))
 
 (defn exec-js
   "Executes the given JavaScript function body in the given `this`
@@ -523,7 +525,8 @@
    `await` async values/effects.
 
    By default `this` refers to the [[cuic.core/window]] of the current
-   default browser but it may be rebound to any node or window object.
+   default browser but it may be rebound to any html element or window
+   object.
 
    Arguments serializable JSON values:
     * `nil` (will be converted to `null`
@@ -565,32 +568,32 @@
    (rewrite-exceptions
      (check-arg [string? "string"] [body "function body"])
      (check-arg [map? "map"] [args "call arguments"])
-     (check-arg [#(or (node? %) (window? %)) "node or window"] [this "this binding"])
+     (check-arg [#(or (element? %) (window? %)) "html element or window"] [this "this binding"])
      (stale-as-ex (cuic-ex "Can't execute JavaScript code on" (quoted this)
                            "because it does not exist anymore")
-       (-exec-js body args this)))))
+                  (-exec-js body args this)))))
 
 ;;;
 ;;; properties
 ;;;
 
 (defn- -js-prop
-  ([node js-expr] (-js-prop node js-expr {}))
-  ([node js-expr args]
+  ([element js-expr] (-js-prop element js-expr {}))
+  ([element js-expr args]
    (let [code (str "return " (string/replace js-expr #"\n\s+" " ") ";")]
-     (-exec-js code args node))))
+     (-exec-js code args element))))
 
-(defn- -bb [node]
+(defn- -bb [element]
   (-exec-js "let r = this.getBoundingClientRect();
              return {
                top: r.top,
                left: r.left,
                width: r.width,
                height: r.height
-             };" {} node))
+             };" {} element))
 
 (defn client-rect
-  "Returns the bounding client rect for the given node as a map of:
+  "Returns the bounding client rect for the given element as a map of:
    ```clojure
    {:top    <number>
     :left   <number>
@@ -600,101 +603,102 @@
 
    See https://developer.mozilla.org/en-US/docs/Web/API/Element/getBoundingClientRect
    for more info."
-  [node]
+  [element]
   (rewrite-exceptions
-    (check-arg [maybe-node? "dom node"] [node "node"])
-    (stale-as-ex (cuic-ex "Can't get client rect from node" (quoted (get-node-name node))
-                          "because node does not exist anymore")
-      (-bb node))))
+    (check-arg [maybe-element? "html element"] [element "element"])
+    (stale-as-ex (cuic-ex "Can't get client rect from element" (quoted (get-element-name element))
+                          "because it does not exist anymore")
+                 (-bb element))))
 
 (defn visible?
-  "Returns boolean whether the given node is visible in DOM or not"
-  [node]
+  "Returns boolean whether the given element is visible in DOM or not"
+  [element]
   (rewrite-exceptions
-    (check-arg [maybe-node? "dom node"] [node "node"])
-    (stale-as-ex (cuic-ex "Can't check visibility of node" (quoted (get-node-name node))
-                          "because node does not exist anymore")
-      (-js-prop node "!!this.offsetParent"))))
+    (check-arg [maybe-element? "html element"] [element "element"])
+    (stale-as-ex (cuic-ex "Can't check visibility of element" (quoted (get-element-name element))
+                          "because it does not exist anymore")
+                 (-js-prop element "!!this.offsetParent"))))
 
 (defn in-viewport?
-  "Returns boolean whether the given node is currently visible and
+  "Returns boolean whether the given element currently visible and
    in the viewport"
-  [node]
+  [element]
   (rewrite-exceptions
-    (check-arg [maybe-node? "dom node"] [node "node"])
-    (stale-as-ex (cuic-ex "Can't check visibility of node" (quoted (get-node-name node))
-                          "because node does not exist anymore")
-      (-js-prop node "!!this.offsetParent && __CUIC__.isInViewport(this)"))))
+    (check-arg [maybe-element? "html element"] [element "node"])
+    (stale-as-ex (cuic-ex "Can't check visibility of element" (quoted (get-element-name element))
+                          "because it does not exist anymore")
+                 (-js-prop element "!!this.offsetParent && __CUIC__.isInViewport(this)"))))
 
 (defn inner-text
-  "Returns the inner text of the given node. See
+  "Returns the inner text of the given html element. See
    https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/innerText
    for more info."
-  [node]
+  [element]
   (rewrite-exceptions
-    (check-arg [maybe-node? "dom node"] [node "node"])
-    (stale-as-ex (cuic-ex "Can't get inner text from node" (quoted (get-node-name node))
-                          "because node does not exist anymore")
-      (-js-prop node "this.innerText"))))
+    (check-arg [maybe-element? "html element"] [element "element"])
+    (stale-as-ex (cuic-ex "Can't get inner text from element" (quoted (get-element-name element))
+                          "because it does not exist anymore")
+                 (-js-prop element "this.innerText"))))
 
 (defn text-content
-  "Returns the text content of the given node. See
+  "Returns the text content of the given html element. See
    https://developer.mozilla.org/en-US/docs/Web/API/Node/textContent
    for more info."
-  [node]
+  [element]
   (rewrite-exceptions
-    (check-arg [maybe-node? "dom node"] [node "node"])
-    (stale-as-ex (cuic-ex "Can't get text content from node" (quoted (get-node-name node))
-                          "because node does not exist anymore")
-      (-js-prop node "this.textContent"))))
+    (check-arg [maybe-element? "html element"] [element "element"])
+    (stale-as-ex (cuic-ex "Can't get text content from element" (quoted (get-element-name element))
+                          "because it does not exist anymore")
+                 (-js-prop element "this.textContent"))))
 
 (defn outer-html
-  "Returns the outer HTML of the given node as [hiccup](https://github.com/weavejester/hiccup).
+  "Returns the outer HTML of the given element as [hiccup](https://github.com/weavejester/hiccup).
    Comments will be returned using `:-#comment` tag and CDATA nodes
    will be returned using `:-#data` tag."
-  [node]
+  [element]
   (rewrite-exceptions
-    (check-arg [maybe-node? "dom node"] [node "node"])
-    (stale-as-ex (cuic-ex "Can't get outer html from node" (quoted (get-node-name node))
-                          "because node does not exist anymore")
-      (let [cdt (get-node-cdt node)
-            node-id (get-node-id node)
-            html (-> (invoke {:cdt  cdt
-                              :cmd  "DOM.getOuterHTML"
-                              :args {:nodeId node-id}})
-                     (:outerHTML))]
-        (if (::document? (meta node))
-          (parse-document html)
-          (parse-element html))))))
+    (check-arg [maybe-element? "html element"] [element "element"])
+    (stale-as-ex (cuic-ex "Can't get outer html from element" (quoted (get-element-name element))
+                          "because it does not exist anymore")
+                 (let [cdt (get-element-cdt element)
+                       node-id (get-node-id element)
+                       html (-> (invoke {:cdt  cdt
+                                         :cmd  "DOM.getOuterHTML"
+                                         :args {:nodeId node-id}})
+                                (:outerHTML))]
+                   (if (::document? (meta element))
+                     (parse-document html)
+                     (parse-element html))))))
 
 (defn value
   "Returns the current string value of the given input/select/textarea
-   element. Throws an exception if node is not a valid input element"
-  [node]
+   element. Throws an exception if the target element is not a valid
+   input element"
+  [element]
   (rewrite-exceptions
-    (check-arg [maybe-node? "dom node"] [node "node"])
-    (stale-as-ex (cuic-ex "Can't get value from node" (quoted (get-node-name node))
-                          "because node does not exist anymore")
-      (when-not (-js-prop node "'value' in this")
-        (throw (cuic-ex "Node" (quoted (get-node-name node)) "is not a valid input element")))
-      (-js-prop node "this.value"))))
+    (check-arg [maybe-element? "html element"] [element "element"])
+    (stale-as-ex (cuic-ex "Can't get value from element" (quoted (get-element-name element))
+                          "because it does not exist anymore")
+                 (when-not (-js-prop element "'value' in this")
+                   (throw (cuic-ex (quoted (get-element-name element)) "is not a valid input element")))
+                 (-js-prop element "this.value"))))
 
 (defn options
   "Returns a list of options `{:keys [value text selected]}` for the
-   given node. Throws an exception if node is not a HTML select element."
-  [node]
+   given element. Throws an exception if element is not a select element."
+  [element]
   (rewrite-exceptions
-    (check-arg [maybe-node? "dom node"] [node "node"])
-    (stale-as-ex (cuic-ex "Can't get options from node" (quoted (get-node-name node))
-                          "because node does not exist anymore")
-      (when (not= "SELECT" (-js-prop node "this.tagName"))
-        (throw (cuic-ex "Node" (quoted (get-node-name node)) "is not a valid select element")))
-      (-js-prop node "Array.prototype.slice
+    (check-arg [maybe-element? "html element"] [element "element"])
+    (stale-as-ex (cuic-ex "Can't get options from element" (quoted (get-element-name element))
+                          "because it does not exist anymore")
+                 (when (not= "SELECT" (-js-prop element "this.tagName"))
+                   (throw (cuic-ex (quoted (get-element-name element)) "is not a valid select element")))
+                 (-js-prop element "Array.prototype.slice
                       .call(this.options || [])
                       .map(({value, text, selected}) => ({ value, text, selected }))"))))
 
 (defn attributes
-  "Returns node's HTML attributes as a map of keyword keys and
+  "Returns element's HTML attributes as a map of keyword keys and
    string values. Boolean attribute values will be converted to
    `true` if they are present
 
@@ -706,23 +710,23 @@
     :data-val \"1\"
     :class    \"foo bar\"}
    ```"
-  [node]
+  [element]
   (rewrite-exceptions
-    (check-arg [maybe-node? "dom node"] [node "node"])
-    (stale-as-ex (cuic-ex "Can't get attributes from node" (quoted (get-node-name node))
-                          "because node does not exist anymore")
-      (let [cdt (get-node-cdt node)]
-        (->> (invoke {:cdt  cdt
-                      :cmd  "DOM.getAttributes"
-                      :args {:nodeId (get-node-id node)}})
-             (:attributes)
-             (partition-all 2 2)
-             (map (fn [[k v]] [(keyword k) (if (contains? boolean-attributes k) true v)]))
-             (into {}))))))
+    (check-arg [maybe-element? "html element"] [element "element"])
+    (stale-as-ex (cuic-ex "Can't get attributes from element" (quoted (get-element-name element))
+                          "because it does not exist anymore")
+                 (let [cdt (get-element-cdt element)]
+                   (->> (invoke {:cdt  cdt
+                                 :cmd  "DOM.getAttributes"
+                                 :args {:nodeId (get-node-id element)}})
+                        (:attributes)
+                        (partition-all 2 2)
+                        (map (fn [[k v]] [(keyword k) (if (contains? boolean-attributes k) true v)]))
+                        (into {}))))))
 
 (defn classes
-  "Returns a set of css classes (as strings) for the given node. Returns
-   an empty set if node does not have any classes.
+  "Returns a set of css classes (as strings) for the given element. Returns
+   an empty set if element does not have any classes.
 
    ```clojure
    ;; <div id='foo' class='foo bar'></div>
@@ -735,10 +739,10 @@
    ; =>
    #{}
    ```"
-  [node]
+  [element]
   (rewrite-exceptions
-    (check-arg [maybe-node? "dom node"] [node "node"])
-    (as-> (attributes node) $
+    (check-arg [maybe-element? "html element"] [element "element"])
+    (as-> (attributes element) $
           (get $ :class "")
           (string/split $ #"\s+")
           (map string/trim $)
@@ -746,71 +750,71 @@
           (set $))))
 
 (defn has-class?
-  "Returns boolean whether the given node has the tested
+  "Returns boolean whether the given element has the tested
    css class or not"
-  [node class]
+  [element class]
   (rewrite-exceptions
-    (check-arg [maybe-node? "dom node"] [node "node"])
+    (check-arg [maybe-element? "html element"] [element "element"])
     (check-arg [string? "string"] [class "tested class name"])
-    (contains? (classes node) class)))
+    (contains? (classes element) class)))
 
 (defn matches?
-  "Returns boolean whether the given node matches the tested css
+  "Returns boolean whether the given element matches the tested css
    selector or not. Throws an exception if selector is not valid."
-  [node selector]
+  [element selector]
   (rewrite-exceptions
-    (check-arg [maybe-node? "dom node"] [node "node"])
+    (check-arg [maybe-element? "html element"] [element "element"])
     (check-arg [string? "string"] [selector "tested css selector"])
-    (stale-as-ex (cuic-ex "Can't match css selector to node" (quoted (get-node-name node))
-                          "because node does not exist anumore")
-      (let [match (-js-prop node "(function(n){try{return n.matches(s)}catch(_){}})(this)" {:s selector})]
-        (when (nil? match)
-          (throw (cuic-ex "The tested css selector" (quoted selector) "is not valid")))
-        match))))
+    (stale-as-ex (cuic-ex "Can't match css selector to element" (quoted (get-element-name element))
+                          "because it does not exist anumore")
+                 (let [match (-js-prop element "(function(n){try{return n.matches(s)}catch(_){}})(this)" {:s selector})]
+                   (when (nil? match)
+                     (throw (cuic-ex "The tested css selector" (quoted selector) "is not valid")))
+                   match))))
 
 (defn has-focus?
-  "Returns boolean whether the given node has focus or not"
-  [node]
+  "Returns boolean whether the given element has focus or not"
+  [element]
   (rewrite-exceptions
-    (check-arg [maybe-node? "dom node"] [node "node"])
-    (stale-as-ex (cuic-ex "Can't resolve focus from node" (quoted (get-node-name node))
-                          "because node does not exist anymore")
-      (-js-prop node "document.activeElement === this"))))
+    (check-arg [maybe-element? "html element"] [element "element"])
+    (stale-as-ex (cuic-ex "Can't resolve focus from element" (quoted (get-element-name element))
+                          "because it does not exist anymore")
+                 (-js-prop element "document.activeElement === this"))))
 
 (defn checked?
-  "Returns boolean whether the given node is checked or not. Throws
-   an exception if the node is not a valid input element."
-  [node]
+  "Returns boolean whether the given element is checked or not. Throws
+   an exception if the target element is not a valid input element."
+  [element]
   (rewrite-exceptions
-    (check-arg [maybe-node? "dom node"] [node "node"])
-    (stale-as-ex (cuic-ex "Can't resolve checked status from node" (quoted (get-node-name node))
-                          "because node does not exist anymore")
-      (when-not (-js-prop node "'checked' in this")
-        (throw (cuic-ex "Node" (quoted (get-node-name node)) "is not a valid input element")))
-      (-js-prop node "!!this.checked"))))
+    (check-arg [maybe-element? "html element"] [element "element"])
+    (stale-as-ex (cuic-ex "Can't resolve checked status from element" (quoted (get-element-name element))
+                          "because it does not exist anymore")
+                 (when-not (-js-prop element "'checked' in this")
+                   (throw (cuic-ex (quoted (get-element-name element)) "is not a valid input element")))
+                 (-js-prop element "!!this.checked"))))
 
 (defn disabled?
-  "Returns boolean whether the given node is disabled or not."
-  [node]
+  "Returns boolean whether the given element is disabled or not."
+  [element]
   (rewrite-exceptions
-    (check-arg [maybe-node? "dom node"] [node "node"])
-    (stale-as-ex (cuic-ex "Can't resolve disabled status from node" (quoted (get-node-name node))
-                          "because node does not exist anymore")
-      (-js-prop node "!!this.disabled"))))
+    (check-arg [maybe-element? "html element"] [element "element"])
+    (stale-as-ex (cuic-ex "Can't resolve disabled status from element" (quoted (get-element-name element))
+                          "because it does not exist anymore")
+                 (-js-prop element "!!this.disabled"))))
 
 ;;;
 ;;; actions
 ;;;
 
-(defn- -wait-visible [node]
+(defn- -wait-visible [element]
   (try
-    (wait (-js-prop node "!!this.offsetParent"))
+    (wait (-js-prop element "!!this.offsetParent"))
     (catch TimeoutException _
       false)))
 
-(defn- -wait-enabled [node]
+(defn- -wait-enabled [element]
   (try
-    (wait (-js-prop node "!this.disabled"))
+    (wait (-js-prop element "!this.disabled"))
     (catch TimeoutException _
       false)))
 
@@ -913,7 +917,7 @@
    to the invocation.
 
    Note that this function is pretty low level and it **does not** focus
-   the typed text to any node. See [[cuic.core/fill]] for a more high-level
+   the typed text to any element. See [[cuic.core/fill]] for a more high-level
    alternative.
 
    Uses the current browser by default but it can be overrided
@@ -971,203 +975,200 @@
        nil))))
 
 (defn scroll-into-view
-  "Scrolls the given node into view if it's not in the view already.
-   Waits [[cuic.core/*timeout*]] until the node becomes visible or
+  "Scrolls the given element into view if it is not in the view already.
+   Waits [[cuic.core/*timeout*]] until the element becomes visible or
    throws an exception if timeout exceeds.
 
-   Returns the target node for threading."
-  [node]
+   Returns the target element for threading."
+  [element]
   (rewrite-exceptions
-    (check-arg [node? "dom node"] [node "target node"])
-    (stale-as-ex (cuic-ex "Can't scroll node" (quoted (get-node-name node))
-                          "into view because node does not exist anymore")
-      (when-not (-wait-visible node)
-        (throw (timeout-ex "Can't scroll node" (quoted (get-node-name node))
-                           "into view because node is not visible")))
-      (scroll-into-view-if-needed node)
-      node)))
+    (check-arg [element? "html element"] [element "target element"])
+    (stale-as-ex (cuic-ex "Can't scroll element" (quoted (get-element-name element))
+                          "into view because it does not exist anymore")
+                 (when-not (-wait-visible element)
+                   (throw (timeout-ex "Can't scroll element" (quoted (get-element-name element))
+                                      "into view because it is not visible")))
+                 (scroll-into-view-if-needed element)
+                 element)))
 
 (defn hover
-  "First scrolls the given node into view (if needed) and then moves the
-   mouse over the node. Waits [[cuic.core/*timeout*]] until the node
+  "First scrolls the given element into view (if needed) and then moves the
+   mouse over the element. Waits [[cuic.core/*timeout*]] until the element
    becomes visible or throws an exception if timeout exceeds.
 
-   Throws an exception if node is not hoverable: it has either zero
+   Throws an exception if element is not hoverable: it has either zero
    width or zero height.
 
-   Returns the target node for threading."
-  [node]
+   Returns the target element for threading."
+  [element]
   (rewrite-exceptions
-    (check-arg [node? "dom node"] [node "hover target"])
-    (stale-as-ex (cuic-ex "Can't hover over node" (quoted (get-node-name node))
-                          "because node does not exist anymore")
-      (when-not (-wait-visible node)
-        (throw (timeout-ex "Can't hover over node" (quoted (get-node-name node))
-                           "because node is not visible")))
-      (scroll-into-view-if-needed node)
-      (let [{:keys [top left width height]} (-bb node)
-            cdt (get-node-cdt node)
-            x (+ left (/ width 2))
-            y (+ top (/ height 2))]
-        (when (or (zero? width)
-                  (zero? height))
-          (throw (cuic-ex "Node" (quoted (get-node-name node))
-                          "is not hoverable")))
-        (mouse-move cdt {:x x :y y})
-        node))))
+    (check-arg [element? "html element"] [element "hover target"])
+    (stale-as-ex (cuic-ex "Can't hover over element" (quoted (get-element-name element))
+                          "because it does not exist anymore")
+                 (when-not (-wait-visible element)
+                   (throw (timeout-ex "Can't hover over element" (quoted (get-element-name element))
+                                      "because it is not visible")))
+                 (scroll-into-view-if-needed element)
+                 (let [{:keys [top left width height]} (-bb element)
+                       cdt (get-element-cdt element)
+                       x (+ left (/ width 2))
+                       y (+ top (/ height 2))]
+                   (when (or (zero? width)
+                             (zero? height))
+                     (throw (cuic-ex (quoted (get-element-name element)) "is not hoverable")))
+                   (mouse-move cdt {:x x :y y})
+                   element))))
 
 (defn click
-  "First scrolls the given node into view (if needed) and then clicks
-   the node once. Waits [[cuic.core/*timeout*]] until the node becomes
+  "First scrolls the given element into view (if needed) and then clicks
+   the element once. Waits [[cuic.core/*timeout*]] until the element becomes
    visible or throws an exception if timeout exceeds.
 
-   Throws an exception if node is not clickable: it has either zero
+   Throws an exception if element is not clickable: it has either zero
    width or zero height or it is disabled.
 
-   Returns the clicked node for threading.
+   Returns the clicked element for threading.
 
    ```clojure
    (c/click (c/find \"button#save\"))
    ```"
-  [node]
+  [element]
   (rewrite-exceptions
-    (check-arg [node? "dom node"] [node "clicked node"])
-    (stale-as-ex (cuic-ex "Can't click node" (quoted (get-node-name node))
-                          "because node does not exist anymore")
-      (when-not (-wait-visible node)
-        (throw (timeout-ex "Can't click node" (quoted (get-node-name node))
-                           "because node is not visible")))
-      (scroll-into-view-if-needed node)
-      (when-not (-wait-enabled node)
-        (throw (timeout-ex "Can't click node" (quoted (get-node-name node))
-                           "because node is disabled")))
-      (let [{:keys [top left width height]} (-bb node)
-            cdt (get-node-cdt node)
-            x (+ left (/ width 2))
-            y (+ top (/ height 2))]
-        (when (or (zero? width)
-                  (zero? height))
-          (throw (cuic-ex "Node" (quoted (get-node-name node))
-                          "is not clickable")))
-        (mouse-move cdt {:x x :y y})
-        (mouse-click cdt {:x x :y y :button :left :clicks 1})
-        node))))
+    (check-arg [element? "html element"] [element "clicked element"])
+    (stale-as-ex (cuic-ex "Can't click element" (quoted (get-element-name element))
+                          "because it does not exist anymore")
+                 (when-not (-wait-visible element)
+                   (throw (timeout-ex "Can't click element" (quoted (get-element-name element))
+                                      "because it is not visible")))
+                 (scroll-into-view-if-needed element)
+                 (when-not (-wait-enabled element)
+                   (throw (timeout-ex "Can't click element" (quoted (get-element-name element))
+                                      "because it is disabled")))
+                 (let [{:keys [top left width height]} (-bb element)
+                       cdt (get-element-cdt element)
+                       x (+ left (/ width 2))
+                       y (+ top (/ height 2))]
+                   (when (or (zero? width)
+                             (zero? height))
+                     (throw (cuic-ex (quoted (get-element-name element)) "is not clickable")))
+                   (mouse-move cdt {:x x :y y})
+                   (mouse-click cdt {:x x :y y :button :left :clicks 1})
+                   element))))
 
 (defn double-click
-  "First scrolls the given node into view (if needed) and then double-clicks
-   the node once. Waits [[cuic.core/*timeout*]] until the node becomes
+  "First scrolls the given element into view (if needed) and then double-clicks
+   the element once. Waits [[cuic.core/*timeout*]] until the element becomes
    visible or throws an exception if timeout exceeds.
 
-   Throws an exception if node is not clickable: it has either zero
+   Throws an exception if element is not clickable: it has either zero
    width or zero height or it is disabled.
 
-   Returns the clicked node for threading.
+   Returns the clicked element for threading.
 
    ```clojure
    (c/double-click (c/find \"button#save\"))
    ```"
-  [node]
+  [element]
   (rewrite-exceptions
-    (check-arg [node? "dom node"] [node "clicked node"])
-    (stale-as-ex (cuic-ex "Can't click node" (quoted (get-node-name node))
-                          "because node does not exist anymore")
-      (when-not (-wait-visible node)
-        (throw (timeout-ex "Can't double-click node" (quoted (get-node-name node))
-                           "because node is not visible")))
-      (scroll-into-view-if-needed node)
-      (when-not (-wait-enabled node)
-        (throw (timeout-ex "Can't double-click node" (quoted (get-node-name node))
-                           "because node is disabled")))
-      (let [{:keys [top left width height]} (-bb node)
-            cdt (get-node-cdt node)
-            x (+ left (/ width 2))
-            y (+ top (/ height 2))]
-        (when (or (zero? width)
-                  (zero? height))
-          (throw (cuic-ex "Node" (quoted (get-node-name node))
-                          "is not clickable")))
-        (mouse-move cdt {:x x :y y})
-        (mouse-click cdt {:x x :y y :button :left :clicks 2})
-        node))))
+    (check-arg [element? "html element"] [element "clicked element"])
+    (stale-as-ex (cuic-ex "Can't click element" (quoted (get-element-name element))
+                          "because it does not exist anymore")
+                 (when-not (-wait-visible element)
+                   (throw (timeout-ex "Can't double-click element" (quoted (get-element-name element))
+                                      "because it is not visible")))
+                 (scroll-into-view-if-needed element)
+                 (when-not (-wait-enabled element)
+                   (throw (timeout-ex "Can't double-click element" (quoted (get-element-name element))
+                                      "because it is disabled")))
+                 (let [{:keys [top left width height]} (-bb element)
+                       cdt (get-element-cdt element)
+                       x (+ left (/ width 2))
+                       y (+ top (/ height 2))]
+                   (when (or (zero? width)
+                             (zero? height))
+                     (throw (cuic-ex (quoted (get-element-name element)) "is not clickable")))
+                   (mouse-move cdt {:x x :y y})
+                   (mouse-click cdt {:x x :y y :button :left :clicks 2})
+                   element))))
 
 (defn focus
-  "First scrolls the given node into view (if needed) and then focuses
-   on the node. Waits [[cuic.core/*timeout*]] until the node becomes
+  "First scrolls the given element into view (if needed) and then focuses
+   on the element. Waits [[cuic.core/*timeout*]] until the element becomes
    visible or throws an exception if timeout exceeds.
 
-   Returns the focused node for threading."
-  [node]
+   Returns the focused element for threading."
+  [element]
   (rewrite-exceptions
-    (check-arg [node? "dom node"] [node "focused node"])
-    (stale-as-ex (cuic-ex "Can't focus on node" (quoted (get-node-name node))
-                          "because node does not exist anymore")
-      (when-not (-wait-visible node)
-        (throw (timeout-ex "Can't focus on node" (quoted (get-node-name node))
-                           "because node is not visible")))
-      (scroll-into-view-if-needed node)
-      (when-not (-wait-enabled node)
-        (throw (timeout-ex "Can't focus on node" (quoted (get-node-name node))
-                           "because node is disabled")))
-      (let [cdt (get-node-cdt node)]
-        (invoke {:cdt  cdt
-                 :cmd  "DOM.focus"
-                 :args {:nodeId (get-node-id node)}})
-        node))))
+    (check-arg [element? "html element"] [element "focused element"])
+    (stale-as-ex (cuic-ex "Can't focus on element" (quoted (get-element-name element))
+                          "because it does not exist anymore")
+                 (when-not (-wait-visible element)
+                   (throw (timeout-ex "Can't focus on element" (quoted (get-element-name element))
+                                      "because it is not visible")))
+                 (scroll-into-view-if-needed element)
+                 (when-not (-wait-enabled element)
+                   (throw (timeout-ex "Can't focus on element" (quoted (get-element-name element))
+                                      "because it is disabled")))
+                 (let [cdt (get-element-cdt element)]
+                   (invoke {:cdt  cdt
+                            :cmd  "DOM.focus"
+                            :args {:nodeId (get-node-id element)}})
+                   element))))
 
 (defn select-text
-  "First scrolls the given node into view (if needed) and then selects
-   all text from the node. Node must be an input/textarea element or
+  "First scrolls the given element into view (if needed) and then selects
+   all text from the element. element must be an input/textarea element or
    otherwise an exception is thrown. Waits [[cuic.core/*timeout*]] until
-   the node becomes visible or throws an exception if timeout exceeds.
+   the element becomes visible or throws an exception if timeout exceeds.
 
-   Returns the target node for threading."
-  [node]
+   Returns the target element for threading."
+  [element]
   (rewrite-exceptions
-    (check-arg [node? "dom node"] [node "selected node"])
-    (stale-as-ex (cuic-ex "Can't select text from node" (quoted (get-node-name node))
-                          "because node does not exist anymore")
-      (when-not (-js-prop node "typeof this.select === 'function'")
-        (throw (cuic-ex "Node" (quoted (get-node-name node)) "is not a valid input element")))
-      (when-not (-wait-visible node)
-        (throw (timeout-ex "Can't select text from node" (quoted (get-node-name node))
-                           "because node is not visible")))
-      (scroll-into-view-if-needed node)
-      (when-not (-wait-enabled node)
-        (throw (timeout-ex "Can't select text from node" (quoted (get-node-name node))
-                           "because node is disabled")))
-      (-exec-js "this.select()" {} node)
-      node)))
+    (check-arg [element? "html element"] [element "selected element"])
+    (stale-as-ex (cuic-ex "Can't select text from element" (quoted (get-element-name element))
+                          "because it does not exist anymore")
+                 (when-not (-js-prop element "typeof this.select === 'function'")
+                   (throw (cuic-ex (quoted (get-element-name element)) "is not a valid input element")))
+                 (when-not (-wait-visible element)
+                   (throw (timeout-ex "Can't select text from element" (quoted (get-element-name element))
+                                      "because it is not visible")))
+                 (scroll-into-view-if-needed element)
+                 (when-not (-wait-enabled element)
+                   (throw (timeout-ex "Can't select text from element" (quoted (get-element-name element))
+                                      "because it is disabled")))
+                 (-exec-js "this.select()" {} element)
+                 element)))
 
 (defn clear-text
-  "First scrolls the given node into view (if needed) and then clears
-   all text from the node. Node must be an input/textarea element or
+  "First scrolls the given element into view (if needed) and then clears
+   all text from the element. element must be an input/textarea element or
    otherwise an exception is thrown. Waits [[cuic.core/*timeout*]] until
-   the node becomes visible or throws an exception if timeout exceeds.
+   the element becomes visible or throws an exception if timeout exceeds.
 
-   Returns the target node for threading."
-  [node]
+   Returns the target element for threading."
+  [element]
   (rewrite-exceptions
-    (check-arg [node? "dom node"] [node "cleared node"])
-    (stale-as-ex (cuic-ex "Can't clear text from node" (quoted (get-node-name node))
-                          "because node does not exist anymore")
-      (when-not (-js-prop node "typeof this.select === 'function'")
-        (throw (cuic-ex "Node" (quoted (get-node-name node)) "is not a valid input element")))
-      (when-not (-wait-visible node)
-        (throw (timeout-ex "Can't clear text from node" (quoted (get-node-name node))
-                           "because node is not visible")))
-      (scroll-into-view-if-needed node)
-      (when-not (-wait-enabled node)
-        (throw (timeout-ex "Can't clear text from node" (quoted (get-node-name node))
-                           "because node is disabled")))
-      (-exec-js "this.select()" {} node)
-      (press-key (get-node-cdt node) 'Backspace)
-      node)))
+    (check-arg [element? "html element"] [element "cleared element"])
+    (stale-as-ex (cuic-ex "Can't clear text from element" (quoted (get-element-name element))
+                          "because it does not exist anymore")
+                 (when-not (-js-prop element "typeof this.select === 'function'")
+                   (throw (cuic-ex (quoted (get-element-name element)) "is not a valid input element")))
+                 (when-not (-wait-visible element)
+                   (throw (timeout-ex "Can't clear text from element" (quoted (get-element-name element))
+                                      "because it is not visible")))
+                 (scroll-into-view-if-needed element)
+                 (when-not (-wait-enabled element)
+                   (throw (timeout-ex "Can't clear text from element" (quoted (get-element-name element))
+                                      "because it is disabled")))
+                 (-exec-js "this.select()" {} element)
+                 (press-key (get-element-cdt element) 'Backspace)
+                 element)))
 
 (defn fill
   "Fills the given text to the given `input` or `textarea` element,
-   clearing any previous text before typing the new text. If node is not
-   in the view, scrolls the node into view first. Waits [[cuic.core/*timeout*]]
-   until the node becomes fillable (visible and not disabled) or
+   clearing any previous text before typing the new text. If element is not
+   in the view, scrolls it into the view first. Waits [[cuic.core/*timeout*]]
+   until the element becomes fillable (visible and not disabled) or
    throws an exception if the timeout exceeds.
 
    Uses [[cuic.core/*typing-speed*]] by default but it can be overrided
@@ -1177,7 +1178,7 @@
    `\\n` and tab `\\t` that will be interpreted as their respective key
    presses.
 
-   Returns the filled node for threading.
+   Returns the filled element for threading.
 
    ```clojure
    (def comment (c/find \"input.comment\"))
@@ -1192,52 +1193,52 @@
    ;; Fill text fast
    (c/fill comment \"Tsers\" {:speed :tycitys})
    ```"
-  ([node text] (fill node text *typing-speed*))
-  ([node text opts]
+  ([element text] (fill element text *typing-speed*))
+  ([element text opts]
    (rewrite-exceptions
      (let [{:keys [speed] :or {speed *typing-speed*}} opts
-           cdt (get-node-cdt node)
+           cdt (get-element-cdt element)
            chars-per-min (-chars-per-minute speed)]
-       (check-arg [node? "dom node"] [node "filled node"])
+       (check-arg [element? "html element"] [element "filled element"])
        (check-arg [string? "string"] [text "typed text"])
-       (stale-as-ex (cuic-ex "Can't fill node" (quoted (get-node-name node))
-                             "because node does not exist anymore")
-         (when-not (-wait-visible node)
-           (throw (timeout-ex "Can't fill node" (quoted (get-node-name node))
-                              "because node is not visible")))
-         (scroll-into-view-if-needed node)
-         (when-not (-wait-enabled node)
-           (throw (timeout-ex "Can't fill node" (quoted (get-node-name node))
-                              "because node is disabled")))
-         (-exec-js "this.select()" {} node)
-         (press-key cdt 'Backspace)
-         (type-text cdt text chars-per-min)
-         node)))))
+       (stale-as-ex (cuic-ex "Can't fill element" (quoted (get-element-name element))
+                             "because it does not exist anymore")
+                    (when-not (-wait-visible element)
+                      (throw (timeout-ex "Can't fill element" (quoted (get-element-name element))
+                                         "because it is not visible")))
+                    (scroll-into-view-if-needed element)
+                    (when-not (-wait-enabled element)
+                      (throw (timeout-ex "Can't fill element" (quoted (get-element-name element))
+                                         "because it is disabled")))
+                    (-exec-js "this.select()" {} element)
+                    (press-key cdt 'Backspace)
+                    (type-text cdt text chars-per-min)
+                    element)))))
 
 (defn choose
-  "Chooses the given options (strings) from the given node. Node must
+  "Chooses the given options (strings) from the given element. element must
    be a html select element or otherwise an exception will be thrown.
-   If node is not in the view, scrolls the node into view first. Waits
-   [[cuic.core/*timeout*]] until the node becomes fillable (visible
+   If element is not in the view, scrolls it into the view first. Waits
+   [[cuic.core/*timeout*]] until the element becomes fillable (visible
    and not disabled) or throws an exception if the timeout exceeds.
 
-   Returns the target node for threading."
-  [node & options]
+   Returns the target element for threading."
+  [element & options]
   (rewrite-exceptions
-    (check-arg [node? "dom node"] [node "updated node"])
+    (check-arg [element? "html element"] [element "updated element"])
     (check-arg [#(every? string? %) "strings"] [options "selected options"])
-    (stale-as-ex (cuic-ex "Can't choose options from node" (quoted (get-node-name node))
-                          "because node does not exist anymore")
-      (when (not= "SELECT" (-js-prop node "this.tagName"))
-        (throw (cuic-ex "Node" (quoted (get-node-name node)) "is not a valid select element")))
-      (when-not (-wait-visible node)
-        (throw (timeout-ex "Can't choose options from node" (quoted (get-node-name node))
-                           "because node is not visible")))
-      (scroll-into-view-if-needed node)
-      (when-not (-wait-enabled node)
-        (throw (timeout-ex "Can't choose options from node" (quoted (get-node-name node))
-                           "because node is disabled")))
-      (-exec-js "
+    (stale-as-ex (cuic-ex "Can't choose options from element" (quoted (get-element-name element))
+                          "because it does not exist anymore")
+                 (when (not= "SELECT" (-js-prop element "this.tagName"))
+                   (throw (cuic-ex (quoted (get-element-name element)) "is not a valid select element")))
+                 (when-not (-wait-visible element)
+                   (throw (timeout-ex "Can't choose options from element" (quoted (get-element-name element))
+                                      "because it is not visible")))
+                 (scroll-into-view-if-needed element)
+                 (when-not (-wait-enabled element)
+                   (throw (timeout-ex "Can't choose options from element" (quoted (get-element-name element))
+                                      "because it is disabled")))
+                 (-exec-js "
         for (let o of this.options) {
           console.log(o)
           if ((o.selected = vals.includes(o.value)) && !this.multiple) {
@@ -1246,14 +1247,14 @@
         }
         this.dispatchEvent(new Event('input', {bubbles: true}));
         this.dispatchEvent(new Event('change', {bubbles: true}));
-        " {:vals options} node)
-      nil)))
+        " {:vals options} element)
+                 nil)))
 
 (defn add-files
-  "Add files to the given node. Node must be a valid html file input
-   element or otherwise an exception is thrown. If node is not in the
-   view, scrolls the node into view first. Waits [[cuic.core/*timeout*]]
-   until the node becomes available (visible and not disabled) or throws
+  "Add files to the given element. Element must be a valid html file input
+   element or otherwise an exception is thrown. If element is not in the
+   view, scrolls it into the view first. Waits [[cuic.core/*timeout*]]
+   until the element becomes available (visible and not disabled) or throws
    an exception if the timeout exceeds.
 
    The given files must be `java.io.File` instances and all of them
@@ -1264,30 +1265,30 @@
    (def photo (c/find \"input#photo\"))
    (c/add-files photo (io/file \"photos/profile.jpg\"))
    ```"
-  [node & files]
+  [element & files]
   (rewrite-exceptions
-    (check-arg [node? "dom node"] [node "input node"])
+    (check-arg [element? "html element"] [element "input element"])
     (doseq [file files]
       (check-arg [#(instance? File %) "file instance"] [file "file"])
       (when-not (.exists ^File file)
         (throw (cuic-ex "File does not exist:" (.getName ^File file)))))
-    (stale-as-ex (cuic-ex "Can't add files to node" (quoted (get-node-name node))
-                          "because node does not exist anymore")
-      (when-not (-js-prop node "this.matches('input[type=file]')")
-        (throw (cuic-ex "Node" (quoted (get-node-name node)) "is not a file input element")))
-      (when-not (-wait-visible node)
-        (throw (timeout-ex "Can't add files to node" (quoted (get-node-name node))
-                           "because node is not visible")))
-      (scroll-into-view-if-needed node)
-      (when-not (-wait-enabled node)
-        (throw (timeout-ex "Can't add files to node" (quoted (get-node-name node))
-                           "because node is disabled")))
-      (when (seq files)
-        (invoke {:cdt  (get-node-cdt node)
-                 :cmd  "DOM.setFileInputFiles"
-                 :args {:nodeId (get-node-id node)
-                        :files  (mapv #(.getAbsolutePath ^File %) files)}}))
-      node)))
+    (stale-as-ex (cuic-ex "Can't add files to element" (quoted (get-element-name element))
+                          "because it does not exist anymore")
+                 (when-not (-js-prop element "this.matches('input[type=file]')")
+                   (throw (cuic-ex (quoted (get-element-name element)) "is not a file input element")))
+                 (when-not (-wait-visible element)
+                   (throw (timeout-ex "Can't add files to element" (quoted (get-element-name element))
+                                      "because it is not visible")))
+                 (scroll-into-view-if-needed element)
+                 (when-not (-wait-enabled element)
+                   (throw (timeout-ex "Can't add files to element" (quoted (get-element-name element))
+                                      "because it is disabled")))
+                 (when (seq files)
+                   (invoke {:cdt  (get-element-cdt element)
+                            :cmd  "DOM.setFileInputFiles"
+                            :args {:nodeId (get-node-id element)
+                                   :files  (mapv #(.getAbsolutePath ^File %) files)}}))
+                 element)))
 
 ;;; misc
 

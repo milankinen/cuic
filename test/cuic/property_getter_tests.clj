@@ -85,10 +85,10 @@
     (testing "property obtained via js execution"
       (is (thrown-with-msg?
             CuicException
-            #"Can't get value from .+ because node does not exist anymore"
+            #"Can't get value from element .+ because it does not exist anymore"
             (c/value input))))
     (testing "property obtained via cdt call"
       (is (thrown-with-msg?
             CuicException
-            #"Can't get attributes from .+ because node does not exist anymore"
+            #"Can't get attributes from element .+ because it does not exist anymore"
             (c/attributes input))))))

@@ -27,11 +27,11 @@
     (testing "node naming and error messages"
       (is (thrown-with-msg?
             CuicException
-            #"Could not find node from \"document\" with selector \".non-existing\" in 1000 milliseconds"
+            #"Could not find element from \"document\" with selector \".non-existing\" in 1000 milliseconds"
             (c/find ".non-existing")))
       (is (thrown-with-msg?
             CuicException
-            #"Could not find node \"MyNode\" from \"document\" with selector \".non-existing\" in 1000 milliseconds"
+            #"Could not find element \"MyNode\" from \"document\" with selector \".non-existing\" in 1000 milliseconds"
             (c/find {:by ".non-existing"
                      :as "MyNode"})))))
   (binding [c/*timeout* 100]
@@ -44,15 +44,15 @@
         (is (some? (c/in ctx-1 (c/find "#hello"))))
         (is (thrown-with-msg?
               CuicException
-              #"Could not find node from \"#context-2\" with selector \"#hello\" in \d+ milliseconds"
+              #"Could not find element from \"#context-2\" with selector \"#hello\" in \d+ milliseconds"
               (c/find {:by "#hello" :in ctx-2})))
         (is (thrown-with-msg?
               CuicException
-              #"Could not find node from \"#context-2\" with selector \"#hello\" in \d+ milliseconds"
+              #"Could not find element from \"#context-2\" with selector \"#hello\" in \d+ milliseconds"
               (c/in ctx-2 (c/find "#hello"))))
         (is (thrown-with-msg?
               CuicException
-              #"Could not find node from \"Context\" with selector \"#hello\" in \d+ milliseconds"
+              #"Could not find element from \"Context\" with selector \"#hello\" in \d+ milliseconds"
               (c/in named-ctx-2 (c/find "#hello"))))))))
 
 (deftest query-tests
@@ -65,9 +65,9 @@
     (is (vector? (c/query "#select option")))
     (is (= 3 (count (c/query "#select option")))))
   (testing "nodes can be named"
-    (is (= ["#node {:tag \"option\", :name \"Option\", :selector \"#select option\"}"
-            "#node {:tag \"option\", :name \"Option\", :selector \"#select option\"}"
-            "#node {:tag \"option\", :name \"Option\", :selector \"#select option\"}"]
+    (is (= ["#element {:tag \"option\", :name \"Option\", :selector \"#select option\"}"
+            "#element {:tag \"option\", :name \"Option\", :selector \"#select option\"}"
+            "#element {:tag \"option\", :name \"Option\", :selector \"#select option\"}"]
            (map pr-str (c/query {:by "#select option" :as "Option"})))))
   (testing "querying under context node"
     (let [ctx-1 (c/find "#context-1")

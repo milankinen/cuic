@@ -14,12 +14,12 @@ JVM to simplify test setups and enable code sharing, but without the
 annoying WebDriver version hassle. 
 
 The design of the current version of `cuic` is the result of countless 
-(re)written tests, hours after hours of CI test runs and enless debug
+(re)written tests, hours after hours of CI test runs and enless debugging
 sessions, driven by the following core principles:
 
   * Utilization of Clojure core data structures and language features 
     instead of custom macros and DSLs
-  * Minimal and unambiguous but easily extendable API surface 
+  * Minimal and unambiguous but easily extendable API contract 
   * Seamless integration with `clojure.test` and the tooling around it
   * First class REPL usage
 
@@ -30,30 +30,30 @@ Here's a small snippet showing how to test the classic
 
 ```clojure 
 (ns example-todomvc-tests
- (:require [clojure.test :refer :all]
-           [cuic.core :as c]
-           [cuic.test :refer [deftest* is* browser-test-fixture]]))
+  (:require [clojure.test :refer :all]
+            [cuic.core :as c]
+            [cuic.test :refer [deftest* is* browser-test-fixture]]))
 
 (use-fixtures
- :once
- (browser-test-fixture))
+  :once
+  (browser-test-fixture))
 
 (defn todos []
- (->> (c/query ".todo-list li")
-      (map c/text-content)))
+  (->> (c/query ".todo-list li")
+       (map c/text-content)))
 
 (defn add-todo [text]
- (doto (c/find ".new-todo")
-   (c/fill text))
- (c/press 'Enter))
+  (doto (c/find ".new-todo")
+    (c/fill text))
+  (c/press 'Enter))
 
 (deftest* creating-new-todos
- (c/goto "http://todomvc.com/examples/react")
- (is* (= [] (todos)))
- (add-todo "Hello world!")
- (is* (= ["Hello world!"] (todos)))
- (add-todo "Tsers!")
- (is* (= ["Hello world!" "Tsers!"] (todos))))
+  (c/goto "http://todomvc.com/examples/react")
+  (is* (= [] (todos)))
+  (add-todo "Hello world!")
+  (is* (= ["Hello world!"] (todos)))
+  (add-todo "Tsers!")
+  (is* (= ["Hello world!" "Tsers!"] (todos))))
 ```
 
 ## Documentation

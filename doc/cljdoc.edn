@@ -4,4 +4,4 @@
    ["Searching elements" {:file "doc/queries.md"}]
    ["Interacting with page" {:file "doc/interactions.md"}]
    ["Configuration" {:file "doc/configuration.md"}]
-   ["REPL" {:file "doc/repl.md"}]]]}
+   ["REPL usage" {:file "doc/repl.md"}]]]}

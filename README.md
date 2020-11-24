@@ -61,6 +61,13 @@ Here's a small snippet showing how to test the classic
 Each `cuic` function has a Clojure doc-string describing its behaviour and usage. 
 Generated API docs and guides are also available as **[cljdoc](https://cljdoc.org/d/cuic/cuic)**.
 
+* [Usage guide](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage)
+    * [Searching elements](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/searching-elements)
+    * [Interacting with page](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/interacting-with-page)
+    * [Dealing with asynchrony](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/dealing-with-asynchrony)
+    * [Configuration](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/configuration)
+    * [REPL usage](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/repl-usage)
+
 ## Similar projects
 
 * [Etaoin](https://github.com/igrishaev/etaoin) - Pure Clojure implementation of Webdriver protocol

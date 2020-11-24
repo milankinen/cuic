@@ -3,5 +3,6 @@
   ["Usage" {:file "doc/usage.md"}
    ["Searching elements" {:file "doc/queries.md"}]
    ["Interacting with page" {:file "doc/interactions.md"}]
+   ["Dealing with asynchrony" {:file "doc/async.md"}]
    ["Configuration" {:file "doc/configuration.md"}]
    ["REPL usage" {:file "doc/repl.md"}]]]}

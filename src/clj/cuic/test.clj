@@ -97,8 +97,7 @@
       (let [data (c/screenshot (assoc *screenshot-options* :browser browser))
             dir (doto ^File (:dir *screenshot-options*)
                   (.mkdirs))]
-        (loop [base (-> (str (string/replace test-name #"\." "\\$")
-                             "$$" context-s)
+        (loop [base (-> (str (some-> test-name (string/replace #"\." "\\$")) context-s)
                         (string/lower-case)
                         (string/replace #"\s+" "-")
                         (string/replace #"[^a-z\-_0-9$]" ""))
@@ -146,11 +145,9 @@
   (alter-var-root #'*abort-immediately* (constantly abort?)))
 
 (defmacro deftest*
-  "Cuic's counterpart for `clojure.test/deftest`. Must be used if your
-   test contains [[cuic.test/is*]] assertions. Works identically to `deftest`
+  "Cuic's counterpart for `clojure.test/deftest`. Works identically to `deftest`
    but stops gracefully if test gets aborted due to an assertion failure
-   in [[cuic.test/is*]], assuming that [[cuic.test/*abort-immediately*]] is
-   set to `true`.
+   in [[cuic.test/is*]].
 
    See namespace documentation for a complete usage example."
   [name & body]
@@ -163,8 +160,7 @@
 
 (defmacro is*
   "Basically a shortcut for `(is (c/wait <cond>))` but with some
-   improvements to error reporting. Can be used only inside tests
-   defined with [[cuic.test/deftest*]]. See namespace documentation
+   improvements to error reporting. See namespace documentation
    for a complete usage example.
 
    If the tested expression does not yield truthy value within the
@@ -214,16 +210,17 @@
     }
    ```"
   [form]
-  `(if-let [t# *current-cuic-test*]
-     (let [res# (is (~eventually ~form))]
-       (when (and (:abort res#) *abort-immediately*)
-         (-try-take-screenshot (str (:ns t#) "$$" (:name t#)) (testing-contexts-str))
-         (do-report {:type :cuic/test-aborted
-                     :test (symbol (:ns t#) (:name t#))
-                     :form '~form})
-         (throw (AbortTestError.)))
-       (:value res#))
-     (throw (AssertionError. "cuic.test/is* can't be used outside of cuic.test/deftest*"))))
+  `(let [tname# (when *current-cuic-test*
+                  (str (:ns *current-cuic-test*) "$$" (:name *current-cuic-test*) "$$"))
+         res# (is (~eventually ~form))]
+     (when (and (:abort res#) *abort-immediately*)
+       (-try-take-screenshot tname# (testing-contexts-str))
+       (do-report {:type :cuic/test-aborted
+                   :test (when *current-cuic-test*
+                           (symbol (:ns *current-cuic-test*) (:name *current-cuic-test*)))
+                   :form '~form})
+       (throw (AbortTestError.)))
+     (:value res#)))
 
 (defn browser-test-fixture
   "Convenience test fixture for UI tests. Launches single Chrome instance

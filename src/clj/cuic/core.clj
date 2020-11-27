@@ -963,15 +963,15 @@
    (c/press 'Shift+Tab)
 
    ;; Focus on next tab index element in custom browser
-   (c/press 'Tab another-chrome)
+   (c/press 'Tab {:browser another-chrome})
    ```"
-  ([key] (rewrite-exceptions (press key (-require-default-browser))))
-  ([key browser]
+  ([key] (rewrite-exceptions (press key {})))
+  ([key opts]
    (rewrite-exceptions
-     (check-arg [simple-symbol? "symbol"] [key "pressed key"])
-     (check-arg [chrome? "chrome instance"] [browser "browser"])
-     (let [cdt (devtools browser)]
-       (press-key cdt key)
+     (let [browser (or (:browser opts) (-require-default-browser))]
+       (check-arg [simple-symbol? "symbol"] [key "pressed key"])
+       (check-arg [chrome? "chrome instance"] [browser "browser"])
+       (press-key (devtools browser) key)
        nil))))
 
 (defn scroll-into-view

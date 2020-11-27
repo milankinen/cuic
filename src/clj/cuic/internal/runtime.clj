@@ -91,7 +91,7 @@
                 (get-element-cdt this)
                 (:cdt this))
           object-id (if (element? this)
-                      (get-object-id this)
+                      (get-object-id this {:dom? true})
                       (get-window-object-id this))
           result (invoke {:cdt  cdt
                           :cmd  "Runtime.callFunctionOn"

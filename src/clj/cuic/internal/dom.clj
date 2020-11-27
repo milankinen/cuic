@@ -132,15 +132,19 @@
     (recur cdt {:objectId (resolve-object-id cdt lookup)} context custom-name selector)
     :else nil))
 
-(defn get-object-id [{:keys [cdt object-id] :as elem}]
+(defn get-object-id [{:keys [cdt object-id] :as elem} {:keys [dom?]}]
   {:pre [(element? elem)]}
-  (check-in-dom cdt object-id)
+  (when dom?
+    (check-in-dom cdt object-id))
   (:object-id elem))
 
-(defn get-node-id [{:keys [cdt object-id] :as elem}]
-  {:pre [(element? elem)]}
-  (check-in-dom cdt object-id)
-  (resolve-node-id cdt object-id))
+(defn get-node-id
+  ([elem] (get-node-id elem {:dom? true}))
+  ([{:keys [cdt object-id] :as elem} {:keys [dom?]}]
+   {:pre [(element? elem)]}
+   (when dom?
+     (check-in-dom cdt object-id))
+   (resolve-node-id cdt object-id)))
 
 (defn get-element-name [elem]
   {:pre [(element? elem)]}

@@ -4,10 +4,10 @@
 
 (set! *warn-on-reflection* true)
 
-(defrecord Page [cdt state listener]
+(defrecord Page [cdt state subscription]
   AutoCloseable
   (close [_]
-    (off listener)))
+    (off subscription)))
 
 (defn- main-frame-id [page]
   (get-in @(:state page) [:main-frame :id]))
@@ -36,16 +36,16 @@
                        (and (= "Page.navigatedWithinDocument" method)
                             (= frameId frame-id)))
                (deliver p ::ok)))
-        li (on {:cdt      cdt
-                :methods  #{"Page.lifecycleEvent"
-                            "Page.navigatedWithinDocument"}
-                :callback cb})]
+        subs (on {:cdt      cdt
+                  :methods  #{"Page.lifecycleEvent"
+                              "Page.navigatedWithinDocument"}
+                  :callback cb})]
     (try
       (navigation-op)
       (when (pos-int? timeout)
         @p)
       (finally
-        (off li)))))
+        (off subs)))))
 
 ;;;;
 
@@ -61,9 +61,9 @@
         ;; Initialize page state
         state (atom {:main-frame main-frame :events #{}})
         ;; Attach listeners for lifecycle events
-        listener (on {:cdt      cdt
-                      :methods  #{"Page.lifecycleEvent"}
-                      :callback #(handle-event state %1 %2)})]
+        subs (on {:cdt      cdt
+                  :methods  #{"Page.lifecycleEvent"}
+                  :callback #(handle-event state %1 %2)})]
     ;; Enable events
     (invoke {:cdt  cdt
              :cmd  "Page.enable"
@@ -72,7 +72,7 @@
              :cmd  "Page.setLifecycleEventsEnabled"
              :args {:enabled true}})
     ;; Return handle to the page
-    (->Page cdt state listener)))
+    (->Page cdt state subs)))
 
 (defn detach [page]
   {:pre [(page? page)]}

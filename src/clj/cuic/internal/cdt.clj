@@ -45,7 +45,7 @@
     (reset! requests {})))
 
 (defn cdt? [x]
-  (some? x))
+  (instance? ChromeDeveloperTools x))
 
 (defn connect [ws-url]
   {:pre [(string? ws-url)]}
@@ -123,12 +123,15 @@
         (throw (DevtoolsProtocolException. (:message error) (:code error))))
       result)))
 
-(defrecord Listener [cdt methods callback]
+(defrecord Subscription [cdt methods callback]
   AutoCloseable
   (close [_]
     (let [{:keys [listeners]} cdt]
       (doseq [method methods]
         (swap! listeners update method #(disj % callback))))))
+
+(defn subscription? [x]
+  (instance? Subscription x))
 
 (defn on [{:keys [cdt methods callback]}]
   {:pre [(cdt? cdt)
@@ -139,11 +142,11 @@
         cb #(callback %1 %2)]
     (doseq [method methods]
       (swap! listeners update method #(conj (or % #{}) cb)))
-    (->Listener cdt methods cb)))
+    (->Subscription cdt methods cb)))
 
-(defn off [^Listener listener]
-  {:pre [(instance? Listener listener)]}
-  (.close listener))
+(defn off [^Subscription subs]
+  {:pre [(instance? Subscription subs)]}
+  (.close subs))
 
 (defn ex-code [ex]
   (when (instance? DevtoolsProtocolException ex)

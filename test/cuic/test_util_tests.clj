@@ -4,7 +4,7 @@
             [clojure.java.io :as io]
             [cuic.core :as c]
             [cuic.chrome :as chrome]
-            [cuic.test :refer [deftest* is* *screenshot-options* *abort-immediately*]]
+            [cuic.test :refer [is* *screenshot-options* *abort-immediately*]]
             [test-common :refer [todos-url]])
   (:import (java.nio.file Files)
            (java.nio.file.attribute FileAttribute)

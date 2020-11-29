@@ -1,4 +1,4 @@
-## Configuration
+## Test suite configuration
 
 The primary purpose of `cuic` is to provide a minimalistic interface for 
 writing UI tests and leveraging idiomatic `clojure.test` convetions as much
@@ -140,3 +140,64 @@ may take up-to few seconds per launch. At least use `:once` instead of
 > require a lot of resources and running them in parallal may slow their
 > execution (especially in CI machines), resulting in false positive
 > timeouts and flaky tests.
+
+## Time agnostic tests with `deftest*` and `is*`
+
+### Reducing assertion boilerplate with `is*`
+
+When testing UIs, practically every step should be considered 
+asynchronous. This means that every assertion must be waited. 
+Writing `(is (c/wait ...))` everywhere is a tedious task and gets 
+forgotten easily. In addition, if you're using a custom test runner
+that pretty prints failed assertions and their diffs (e.g. `eftest` 
+or Cursive's test runner), `c/wait` will mess up the pretty printing. 
+
+To avoid this, `cuic` provides `cuic.test/is*` that is a shorthand 
+for `(is (c/wait ...))` with some test reporter magic to preserve 
+pretty printing. It also tries to capture screenshot from the active
+browser page in case of assertion failure. Screenshots will be saved
+under `target/screenshots` by default, but the location can be changed
+by overriding the [[cuic.test/*screenshot-options*]] configration
+varible (`:dir` option).
+
+The usage of `is*` does not differ from traditional 
+`is` usage at all:
+
+```clojure 
+(is (c/wait (c/visible? (save-button))))
+(is (c/wait (c/has-class? (save-button) "primary"))) 
+(is (c/wait (re-find #"Changes saved" (c/inner-text (save-summary)))))
+
+;;;; => 
+(require '[cuic.test :refer [is*])
+
+(is* (c/visible? (save-button)))
+(is* (c/has-class? (save-button) "primary"))
+(is* (re-find #"Changes saved" (c/inner-text (save-summary))))
+```
+
+Like `wait`, also `is*` can be used for non-UI assertions:
+
+```clojure 
+(add-todo "Foo")
+(add-todo "Bar")
+(ogy-click "Save")
+(is* (= #{"Foo" "Bar"} (get-todos-from-db))))
+```
+
+### Graceful test aborts with `deftest*`
+
+Because of the nature of UI tests, first assertion failure will usually 
+indicate the failure of the remaining assertions as well. If each of 
+these assertions wait the timeout before giving up, the test run might 
+prolong quite a bit. That's why `is*` aborts the current test run 
+immediately after the first failed assertion (this behaviour can be 
+changed with [[cuic.test/*abort-immediately*]] configuration variable).
+
+Aborting is implemented by throwing an `AbortTestError` from the failed
+assertion. If you're using `deftest`, the test suite catches and reports 
+this error as well. If you want to avoid this unnecessary "double failure",
+you can switch the `clojure.test/deftest` to `cuic.test/deftest*` which
+will suppress the error gracefully. It also provides more information to
+`is*` assertions about the executed test, resulting in more accurate 
+screenshot filenames.

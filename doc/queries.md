@@ -30,8 +30,7 @@ a valid CSS selector and returning an HTML element that matches the selector.
 
 Sometimes the target element may appear in DOM after some time (e.g. after a 
 successful AJAX request), thus `find` tries to wait for the selector if the 
-element is not found immediately, but timeouts after a certain period 
-(see [configuration](./configuration.md) for info). 
+element is not found immediately, but timeouts after a certain period. 
 
 ```clojure 
 (c/click (c/find "#save-btn"))

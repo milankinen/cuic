@@ -69,8 +69,7 @@ handle to the target element. However, unlike reading functions, actions
 may implicitly wait until the target element condition enables the specific 
 action: for example `(c/click save-btn)` will wait until the `save-btn` 
 becomes visible and enabled. If the required condition is not satisfied
-within the defined timeout (see [configuration](./configuration.md) for
-more details), action fails with an exception.
+within the defined timeout, action fails with an exception.
 
 **OBS!** Because actions may actually *mutate* the page state, be 
 careful to call them only once. In other words, do **not** place any

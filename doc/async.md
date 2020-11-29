@@ -154,42 +154,6 @@ found from db? Use `wait` to check the expceted value:
 (is (c/wait (= #{"Foo" "Bar"} (set (map :text (query (get-db-conn) "SELECT text FROM todos"))))))
 ```
 
-#### Reducing assertion boilerplate with `cuic.test/is*`
-
-When testing UIs, practically every step must be considered 
-asynchronous.  This means that every assertion should be waited. 
-Writing `(is (c/wait ...))` everywhere is a tedious task and gets 
-forgotten easily. In addition, if you're using a custom test runner
-that pretty prints failed assertions and their diffs (e.g. `eftest` 
-or Cursive's test runner), `c/wait` will mess up the pretty printing. 
-To avoid this, `cuic` provides `cuic.test/is*` that is a shorthand 
-for `(is (c/wait ...))` with some test reporter magic to preserve 
-pretty printing. 
-
-The usage of `is*` does not differ from traditional `is` usage at all:
-
-```clojure 
-(is (c/wait (c/visible? (save-button))))
-(is (c/wait (c/has-class? (save-button) "primary"))) 
-(is (c/wait (re-find #"Changes saved" (c/inner-text (save-summary)))))
-
-;;;; => 
-(require '[cuic.test :refer [is*])
-
-(is* (c/visible? (save-button)))
-(is* (c/has-class? (save-button) "primary"))
-(is* (re-find #"Changes saved" (c/inner-text (save-summary))))
-```
-
-Like `wait`, also `is*` can be used for non-UI assertions:
-
-```clojure 
-(add-todo "Foo")
-(add-todo "Bar")
-(ogy-click "Save")
-(is* (= #{"Foo" "Bar"} (get-todos-from-db))))
-```
-
 ### Some words about thread safety
 
 Cuic elements are not thread safe. Do not test your luck and try to use

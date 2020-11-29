@@ -35,7 +35,7 @@
            (first))
       (throw (CuicException. "Chrome binary not found" nil))))
 
-(defn- terminate [^Process proc]
+(defn- kill-proc [^Process proc]
   (when (.isAlive proc)
     (.destroy proc)
     (try
@@ -129,7 +129,7 @@
       (reset! tools nil)
       (page/detach page)
       (cdt/disconnect cdt)
-      (terminate process)
+      (kill-proc process)
       (when destroy-data-dir?
         (delete-data-dir data-dir)))))
 
@@ -372,11 +372,18 @@
                    (atom {:cdt cdt :page (page/attach cdt)})))
        (catch Exception e
          (error e "Unexpected error occurred while connecting to Chrome Devtools")
-         (terminate proc)
+         (kill-proc proc)
          (delete-data-dir tmp-data-dir)
          (if (instance? CuicException e)
            (throw e)
            (throw (CuicException. "Could not connect to Chrome Devtools" e))))))))
+
+(defn terminate
+  "Terminates the given Chrome instance and cleans up its temporary
+   resources and directories."
+  [chrome]
+  {:pre [(chrome? chrome)]}
+  (.close ^Chrome chrome))
 
 (defn ^:no-doc devtools
   "Returns handle to the Chrome devtools. Not exposed as public

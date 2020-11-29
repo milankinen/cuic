@@ -11,6 +11,7 @@
                                        stale-as-nil
                                        stale-as-ex
                                        get-node-id
+                                       get-object-id
                                        get-element-name
                                        get-custom-name
                                        get-element-cdt
@@ -631,6 +632,39 @@
     (stale-as-ex (cuic-ex "Can't check visibility of element" (quoted (get-element-name element))
                           "because it does not exist anymore")
       (-js-prop element "!!this.offsetParent && __CUIC__.isInViewport(this)"))))
+
+(defn parent
+  "Returns parent element of the given html element or `nil` if element
+   does not have parent (= document)"
+  [element]
+  (rewrite-exceptions
+    (check-arg [maybe-element? "html element"] [element "element"])
+    (stale-as-ex (cuic-ex "Can't get parent of element" (quoted (get-element-name element))
+                          "because it does not exist anymore")
+      (let [parent (-exec-js "return this.parentNode;" {} element false)
+            cdt (get-element-cdt element)]
+        (when (:objectId parent)
+          (wrap-element cdt parent nil nil nil))))))
+
+(defn children
+  "Returns children of the given html element as a vector or `nil` if
+   element does not have children."
+  [element]
+  (rewrite-exceptions
+    (check-arg [maybe-element? "html element"] [element "element"])
+    (stale-as-ex (cuic-ex "Can't get children of element" (quoted (get-element-name element))
+                          "because it does not exist anymore")
+      (let [cdt (get-element-cdt element)]
+        (some->> (invoke {:cdt  cdt
+                          :cmd  "DOM.describeNode"
+                          :args {:objectId (get-object-id element {:dom? true})
+                                 :depth    1}})
+                 (:node)
+                 (:children)
+                 (map #(wrap-element cdt % nil nil nil))
+                 (doall)
+                 (seq)
+                 (vec))))))
 
 (defn inner-text
   "Returns the inner text of the given html element. See

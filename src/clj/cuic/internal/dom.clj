@@ -150,7 +150,8 @@
   {:pre [(element? elem)]}
   (or (:custom-name elem)
       (:selector elem)
-      (try (resolve-tag elem) (catch Exception _))))
+      (try (resolve-tag elem) (catch Exception _))
+      "<unknown>"))
 
 (defn assoc-custom-name [elem name]
   {:pre [(element? elem)]}

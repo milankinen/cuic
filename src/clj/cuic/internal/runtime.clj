@@ -102,7 +102,9 @@
                                  :objectId            object-id}})]
       (if-let [ex-details (:exceptionDetails result)]
         {:error (get-in ex-details [:exception :description])}
-        {:return (get-in result [:result :value])}))
+        {:return (if return-by-value
+                   (get-in result [:result :value])
+                   (get result :result))}))
     (catch DevtoolsProtocolException ex
       (if (re-find #"Object couldn't be returned by value" (ex-message ex))
         (throw (cuic-ex "Only primitives, objects and arrays accepted"

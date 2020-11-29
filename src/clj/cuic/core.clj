@@ -299,18 +299,18 @@
   ([browser]
    (rewrite-exceptions
      (stale-as-ex (cuic-ex "Couldn't get active element")
-                  (check-arg [chrome? "chrome instance"] [browser "given browser"])
-                  (let [cdt (devtools browser)
-                        res (invoke {:cdt  cdt
-                                     :cmd  "Runtime.evaluate"
-                                     :args {:expression "document.activeElement"}})
-                        obj (:result res)]
-                    (when obj
-                      (when-let [node (-> (invoke {:cdt  cdt
-                                                   :cmd  "DOM.describeNode"
-                                                   :args (select-keys obj [:objectId])})
-                                          (:node))]
-                        (wrap-element cdt node nil (:description obj) nil))))))))
+       (check-arg [chrome? "chrome instance"] [browser "given browser"])
+       (let [cdt (devtools browser)
+             res (invoke {:cdt  cdt
+                          :cmd  "Runtime.evaluate"
+                          :args {:expression "document.activeElement"}})
+             obj (:result res)]
+         (when obj
+           (when-let [node (-> (invoke {:cdt  cdt
+                                        :cmd  "DOM.describeNode"
+                                        :args (select-keys obj [:objectId])})
+                               (:node))]
+             (wrap-element cdt node nil (:description obj) nil))))))))
 
 (defn find
   "Tries to find **exactly one** html element by the given css
@@ -452,13 +452,16 @@
 ;;; js code execution
 ;;;
 
-(defn- -exec-js [code args this]
-  (let [result (exec-js-code {:code code
-                              :args args
-                              :this this})]
-    (if-let [error (:error result)]
-      (throw (cuic-ex (str "JavaScript error occurred:\n\n" error)))
-      (:return result))))
+(defn- -exec-js
+  ([code args this] (-exec-js code args this true))
+  ([code args this return-by-value]
+   (let [result (exec-js-code {:code            code
+                               :args            args
+                               :this            this
+                               :return-by-value return-by-value})]
+     (if-let [error (:error result)]
+       (throw (cuic-ex (str "JavaScript error occurred:\n\n" error)))
+       (:return result)))))
 
 (defn eval-js
   "Evaluates the given JavaScript expression in the given `this` object
@@ -515,7 +518,7 @@
      (check-arg [#(or (element? %) (window? %)) "html element or window object"] [this "this binding"])
      (stale-as-ex (cuic-ex "Can't evaluate JavaScript expression on" (quoted this)
                            "because it does not exist anymore")
-                  (-exec-js (str "return " expr ";") args this)))))
+       (-exec-js (str "return " expr ";") args this)))))
 
 (defn exec-js
   "Executes the given JavaScript function body in the given `this`
@@ -571,7 +574,7 @@
      (check-arg [#(or (element? %) (window? %)) "html element or window"] [this "this binding"])
      (stale-as-ex (cuic-ex "Can't execute JavaScript code on" (quoted this)
                            "because it does not exist anymore")
-                  (-exec-js body args this)))))
+       (-exec-js body args this)))))
 
 ;;;
 ;;; properties
@@ -608,7 +611,7 @@
     (check-arg [maybe-element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't get client rect from element" (quoted (get-element-name element))
                           "because it does not exist anymore")
-                 (-bb element))))
+      (-bb element))))
 
 (defn visible?
   "Returns boolean whether the given element is visible in DOM or not"
@@ -617,17 +620,17 @@
     (check-arg [maybe-element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't check visibility of element" (quoted (get-element-name element))
                           "because it does not exist anymore")
-                 (-js-prop element "!!this.offsetParent"))))
+      (-js-prop element "!!this.offsetParent"))))
 
 (defn in-viewport?
   "Returns boolean whether the given element currently visible and
    in the viewport"
   [element]
   (rewrite-exceptions
-    (check-arg [maybe-element? "html element"] [element "node"])
+    (check-arg [maybe-element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't check visibility of element" (quoted (get-element-name element))
                           "because it does not exist anymore")
-                 (-js-prop element "!!this.offsetParent && __CUIC__.isInViewport(this)"))))
+      (-js-prop element "!!this.offsetParent && __CUIC__.isInViewport(this)"))))
 
 (defn inner-text
   "Returns the inner text of the given html element. See
@@ -638,7 +641,7 @@
     (check-arg [maybe-element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't get inner text from element" (quoted (get-element-name element))
                           "because it does not exist anymore")
-                 (-js-prop element "this.innerText"))))
+      (-js-prop element "this.innerText"))))
 
 (defn text-content
   "Returns the text content of the given html element. See
@@ -649,7 +652,7 @@
     (check-arg [maybe-element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't get text content from element" (quoted (get-element-name element))
                           "because it does not exist anymore")
-                 (-js-prop element "this.textContent"))))
+      (-js-prop element "this.textContent"))))
 
 (defn outer-html
   "Returns the outer HTML of the given element as [hiccup](https://github.com/weavejester/hiccup).
@@ -660,15 +663,15 @@
     (check-arg [maybe-element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't get outer html from element" (quoted (get-element-name element))
                           "because it does not exist anymore")
-                 (let [cdt (get-element-cdt element)
-                       node-id (get-node-id element)
-                       html (-> (invoke {:cdt  cdt
-                                         :cmd  "DOM.getOuterHTML"
-                                         :args {:nodeId node-id}})
-                                (:outerHTML))]
-                   (if (::document? (meta element))
-                     (parse-document html)
-                     (parse-element html))))))
+      (let [cdt (get-element-cdt element)
+            node-id (get-node-id element)
+            html (-> (invoke {:cdt  cdt
+                              :cmd  "DOM.getOuterHTML"
+                              :args {:nodeId node-id}})
+                     (:outerHTML))]
+        (if (::document? (meta element))
+          (parse-document html)
+          (parse-element html))))))
 
 (defn value
   "Returns the current string value of the given input/select/textarea
@@ -679,9 +682,9 @@
     (check-arg [maybe-element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't get value from element" (quoted (get-element-name element))
                           "because it does not exist anymore")
-                 (when-not (-js-prop element "'value' in this")
-                   (throw (cuic-ex (quoted (get-element-name element)) "is not a valid input element")))
-                 (-js-prop element "this.value"))))
+      (when-not (-js-prop element "'value' in this")
+        (throw (cuic-ex (quoted (get-element-name element)) "is not a valid input element")))
+      (-js-prop element "this.value"))))
 
 (defn options
   "Returns a list of options `{:keys [value text selected]}` for the
@@ -691,9 +694,9 @@
     (check-arg [maybe-element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't get options from element" (quoted (get-element-name element))
                           "because it does not exist anymore")
-                 (when (not= "SELECT" (-js-prop element "this.tagName"))
-                   (throw (cuic-ex (quoted (get-element-name element)) "is not a valid select element")))
-                 (-js-prop element "Array.prototype.slice
+      (when (not= "SELECT" (-js-prop element "this.tagName"))
+        (throw (cuic-ex (quoted (get-element-name element)) "is not a valid select element")))
+      (-js-prop element "Array.prototype.slice
                       .call(this.options || [])
                       .map(({value, text, selected}) => ({ value, text, selected }))"))))
 
@@ -715,14 +718,14 @@
     (check-arg [maybe-element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't get attributes from element" (quoted (get-element-name element))
                           "because it does not exist anymore")
-                 (let [cdt (get-element-cdt element)]
-                   (->> (invoke {:cdt  cdt
-                                 :cmd  "DOM.getAttributes"
-                                 :args {:nodeId (get-node-id element)}})
-                        (:attributes)
-                        (partition-all 2 2)
-                        (map (fn [[k v]] [(keyword k) (if (contains? boolean-attributes k) true v)]))
-                        (into {}))))))
+      (let [cdt (get-element-cdt element)]
+        (->> (invoke {:cdt  cdt
+                      :cmd  "DOM.getAttributes"
+                      :args {:nodeId (get-node-id element)}})
+             (:attributes)
+             (partition-all 2 2)
+             (map (fn [[k v]] [(keyword k) (if (contains? boolean-attributes k) true v)]))
+             (into {}))))))
 
 (defn classes
   "Returns a set of css classes (as strings) for the given element. Returns
@@ -767,10 +770,10 @@
     (check-arg [string? "string"] [selector "tested css selector"])
     (stale-as-ex (cuic-ex "Can't match css selector to element" (quoted (get-element-name element))
                           "because it does not exist anumore")
-                 (let [match (-js-prop element "(function(n){try{return n.matches(s)}catch(_){}})(this)" {:s selector})]
-                   (when (nil? match)
-                     (throw (cuic-ex "The tested css selector" (quoted selector) "is not valid")))
-                   match))))
+      (let [match (-js-prop element "(function(n){try{return n.matches(s)}catch(_){}})(this)" {:s selector})]
+        (when (nil? match)
+          (throw (cuic-ex "The tested css selector" (quoted selector) "is not valid")))
+        match))))
 
 (defn has-focus?
   "Returns boolean whether the given element has focus or not"
@@ -779,7 +782,7 @@
     (check-arg [maybe-element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't resolve focus from element" (quoted (get-element-name element))
                           "because it does not exist anymore")
-                 (-js-prop element "document.activeElement === this"))))
+      (-js-prop element "document.activeElement === this"))))
 
 (defn checked?
   "Returns boolean whether the given element is checked or not. Throws
@@ -789,9 +792,9 @@
     (check-arg [maybe-element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't resolve checked status from element" (quoted (get-element-name element))
                           "because it does not exist anymore")
-                 (when-not (-js-prop element "'checked' in this")
-                   (throw (cuic-ex (quoted (get-element-name element)) "is not a valid input element")))
-                 (-js-prop element "!!this.checked"))))
+      (when-not (-js-prop element "'checked' in this")
+        (throw (cuic-ex (quoted (get-element-name element)) "is not a valid input element")))
+      (-js-prop element "!!this.checked"))))
 
 (defn disabled?
   "Returns boolean whether the given element is disabled or not."
@@ -800,7 +803,7 @@
     (check-arg [maybe-element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't resolve disabled status from element" (quoted (get-element-name element))
                           "because it does not exist anymore")
-                 (-js-prop element "!!this.disabled"))))
+      (-js-prop element "!!this.disabled"))))
 
 ;;;
 ;;; actions
@@ -985,11 +988,11 @@
     (check-arg [element? "html element"] [element "target element"])
     (stale-as-ex (cuic-ex "Can't scroll element" (quoted (get-element-name element))
                           "into view because it does not exist anymore")
-                 (when-not (-wait-visible element)
-                   (throw (timeout-ex "Can't scroll element" (quoted (get-element-name element))
-                                      "into view because it is not visible")))
-                 (scroll-into-view-if-needed element)
-                 element)))
+      (when-not (-wait-visible element)
+        (throw (timeout-ex "Can't scroll element" (quoted (get-element-name element))
+                           "into view because it is not visible")))
+      (scroll-into-view-if-needed element)
+      element)))
 
 (defn hover
   "First scrolls the given element into view (if needed) and then moves the
@@ -1005,19 +1008,19 @@
     (check-arg [element? "html element"] [element "hover target"])
     (stale-as-ex (cuic-ex "Can't hover over element" (quoted (get-element-name element))
                           "because it does not exist anymore")
-                 (when-not (-wait-visible element)
-                   (throw (timeout-ex "Can't hover over element" (quoted (get-element-name element))
-                                      "because it is not visible")))
-                 (scroll-into-view-if-needed element)
-                 (let [{:keys [top left width height]} (-bb element)
-                       cdt (get-element-cdt element)
-                       x (+ left (/ width 2))
-                       y (+ top (/ height 2))]
-                   (when (or (zero? width)
-                             (zero? height))
-                     (throw (cuic-ex (quoted (get-element-name element)) "is not hoverable")))
-                   (mouse-move cdt {:x x :y y})
-                   element))))
+      (when-not (-wait-visible element)
+        (throw (timeout-ex "Can't hover over element" (quoted (get-element-name element))
+                           "because it is not visible")))
+      (scroll-into-view-if-needed element)
+      (let [{:keys [top left width height]} (-bb element)
+            cdt (get-element-cdt element)
+            x (+ left (/ width 2))
+            y (+ top (/ height 2))]
+        (when (or (zero? width)
+                  (zero? height))
+          (throw (cuic-ex (quoted (get-element-name element)) "is not hoverable")))
+        (mouse-move cdt {:x x :y y})
+        element))))
 
 (defn click
   "First scrolls the given element into view (if needed) and then clicks
@@ -1037,23 +1040,23 @@
     (check-arg [element? "html element"] [element "clicked element"])
     (stale-as-ex (cuic-ex "Can't click element" (quoted (get-element-name element))
                           "because it does not exist anymore")
-                 (when-not (-wait-visible element)
-                   (throw (timeout-ex "Can't click element" (quoted (get-element-name element))
-                                      "because it is not visible")))
-                 (scroll-into-view-if-needed element)
-                 (when-not (-wait-enabled element)
-                   (throw (timeout-ex "Can't click element" (quoted (get-element-name element))
-                                      "because it is disabled")))
-                 (let [{:keys [top left width height]} (-bb element)
-                       cdt (get-element-cdt element)
-                       x (+ left (/ width 2))
-                       y (+ top (/ height 2))]
-                   (when (or (zero? width)
-                             (zero? height))
-                     (throw (cuic-ex (quoted (get-element-name element)) "is not clickable")))
-                   (mouse-move cdt {:x x :y y})
-                   (mouse-click cdt {:x x :y y :button :left :clicks 1})
-                   element))))
+      (when-not (-wait-visible element)
+        (throw (timeout-ex "Can't click element" (quoted (get-element-name element))
+                           "because it is not visible")))
+      (scroll-into-view-if-needed element)
+      (when-not (-wait-enabled element)
+        (throw (timeout-ex "Can't click element" (quoted (get-element-name element))
+                           "because it is disabled")))
+      (let [{:keys [top left width height]} (-bb element)
+            cdt (get-element-cdt element)
+            x (+ left (/ width 2))
+            y (+ top (/ height 2))]
+        (when (or (zero? width)
+                  (zero? height))
+          (throw (cuic-ex (quoted (get-element-name element)) "is not clickable")))
+        (mouse-move cdt {:x x :y y})
+        (mouse-click cdt {:x x :y y :button :left :clicks 1})
+        element))))
 
 (defn double-click
   "First scrolls the given element into view (if needed) and then double-clicks
@@ -1073,23 +1076,23 @@
     (check-arg [element? "html element"] [element "clicked element"])
     (stale-as-ex (cuic-ex "Can't click element" (quoted (get-element-name element))
                           "because it does not exist anymore")
-                 (when-not (-wait-visible element)
-                   (throw (timeout-ex "Can't double-click element" (quoted (get-element-name element))
-                                      "because it is not visible")))
-                 (scroll-into-view-if-needed element)
-                 (when-not (-wait-enabled element)
-                   (throw (timeout-ex "Can't double-click element" (quoted (get-element-name element))
-                                      "because it is disabled")))
-                 (let [{:keys [top left width height]} (-bb element)
-                       cdt (get-element-cdt element)
-                       x (+ left (/ width 2))
-                       y (+ top (/ height 2))]
-                   (when (or (zero? width)
-                             (zero? height))
-                     (throw (cuic-ex (quoted (get-element-name element)) "is not clickable")))
-                   (mouse-move cdt {:x x :y y})
-                   (mouse-click cdt {:x x :y y :button :left :clicks 2})
-                   element))))
+      (when-not (-wait-visible element)
+        (throw (timeout-ex "Can't double-click element" (quoted (get-element-name element))
+                           "because it is not visible")))
+      (scroll-into-view-if-needed element)
+      (when-not (-wait-enabled element)
+        (throw (timeout-ex "Can't double-click element" (quoted (get-element-name element))
+                           "because it is disabled")))
+      (let [{:keys [top left width height]} (-bb element)
+            cdt (get-element-cdt element)
+            x (+ left (/ width 2))
+            y (+ top (/ height 2))]
+        (when (or (zero? width)
+                  (zero? height))
+          (throw (cuic-ex (quoted (get-element-name element)) "is not clickable")))
+        (mouse-move cdt {:x x :y y})
+        (mouse-click cdt {:x x :y y :button :left :clicks 2})
+        element))))
 
 (defn focus
   "First scrolls the given element into view (if needed) and then focuses
@@ -1102,18 +1105,18 @@
     (check-arg [element? "html element"] [element "focused element"])
     (stale-as-ex (cuic-ex "Can't focus on element" (quoted (get-element-name element))
                           "because it does not exist anymore")
-                 (when-not (-wait-visible element)
-                   (throw (timeout-ex "Can't focus on element" (quoted (get-element-name element))
-                                      "because it is not visible")))
-                 (scroll-into-view-if-needed element)
-                 (when-not (-wait-enabled element)
-                   (throw (timeout-ex "Can't focus on element" (quoted (get-element-name element))
-                                      "because it is disabled")))
-                 (let [cdt (get-element-cdt element)]
-                   (invoke {:cdt  cdt
-                            :cmd  "DOM.focus"
-                            :args {:nodeId (get-node-id element)}})
-                   element))))
+      (when-not (-wait-visible element)
+        (throw (timeout-ex "Can't focus on element" (quoted (get-element-name element))
+                           "because it is not visible")))
+      (scroll-into-view-if-needed element)
+      (when-not (-wait-enabled element)
+        (throw (timeout-ex "Can't focus on element" (quoted (get-element-name element))
+                           "because it is disabled")))
+      (let [cdt (get-element-cdt element)]
+        (invoke {:cdt  cdt
+                 :cmd  "DOM.focus"
+                 :args {:nodeId (get-node-id element)}})
+        element))))
 
 (defn select-text
   "First scrolls the given element into view (if needed) and then selects
@@ -1127,17 +1130,17 @@
     (check-arg [element? "html element"] [element "selected element"])
     (stale-as-ex (cuic-ex "Can't select text from element" (quoted (get-element-name element))
                           "because it does not exist anymore")
-                 (when-not (-js-prop element "typeof this.select === 'function'")
-                   (throw (cuic-ex (quoted (get-element-name element)) "is not a valid input element")))
-                 (when-not (-wait-visible element)
-                   (throw (timeout-ex "Can't select text from element" (quoted (get-element-name element))
-                                      "because it is not visible")))
-                 (scroll-into-view-if-needed element)
-                 (when-not (-wait-enabled element)
-                   (throw (timeout-ex "Can't select text from element" (quoted (get-element-name element))
-                                      "because it is disabled")))
-                 (-exec-js "this.select()" {} element)
-                 element)))
+      (when-not (-js-prop element "typeof this.select === 'function'")
+        (throw (cuic-ex (quoted (get-element-name element)) "is not a valid input element")))
+      (when-not (-wait-visible element)
+        (throw (timeout-ex "Can't select text from element" (quoted (get-element-name element))
+                           "because it is not visible")))
+      (scroll-into-view-if-needed element)
+      (when-not (-wait-enabled element)
+        (throw (timeout-ex "Can't select text from element" (quoted (get-element-name element))
+                           "because it is disabled")))
+      (-exec-js "this.select()" {} element)
+      element)))
 
 (defn clear-text
   "First scrolls the given element into view (if needed) and then clears
@@ -1151,18 +1154,18 @@
     (check-arg [element? "html element"] [element "cleared element"])
     (stale-as-ex (cuic-ex "Can't clear text from element" (quoted (get-element-name element))
                           "because it does not exist anymore")
-                 (when-not (-js-prop element "typeof this.select === 'function'")
-                   (throw (cuic-ex (quoted (get-element-name element)) "is not a valid input element")))
-                 (when-not (-wait-visible element)
-                   (throw (timeout-ex "Can't clear text from element" (quoted (get-element-name element))
-                                      "because it is not visible")))
-                 (scroll-into-view-if-needed element)
-                 (when-not (-wait-enabled element)
-                   (throw (timeout-ex "Can't clear text from element" (quoted (get-element-name element))
-                                      "because it is disabled")))
-                 (-exec-js "this.select()" {} element)
-                 (press-key (get-element-cdt element) 'Backspace)
-                 element)))
+      (when-not (-js-prop element "typeof this.select === 'function'")
+        (throw (cuic-ex (quoted (get-element-name element)) "is not a valid input element")))
+      (when-not (-wait-visible element)
+        (throw (timeout-ex "Can't clear text from element" (quoted (get-element-name element))
+                           "because it is not visible")))
+      (scroll-into-view-if-needed element)
+      (when-not (-wait-enabled element)
+        (throw (timeout-ex "Can't clear text from element" (quoted (get-element-name element))
+                           "because it is disabled")))
+      (-exec-js "this.select()" {} element)
+      (press-key (get-element-cdt element) 'Backspace)
+      element)))
 
 (defn fill
   "Fills the given text to the given `input` or `textarea` element,
@@ -1203,17 +1206,17 @@
        (check-arg [string? "string"] [text "typed text"])
        (stale-as-ex (cuic-ex "Can't fill element" (quoted (get-element-name element))
                              "because it does not exist anymore")
-                    (when-not (-wait-visible element)
-                      (throw (timeout-ex "Can't fill element" (quoted (get-element-name element))
-                                         "because it is not visible")))
-                    (scroll-into-view-if-needed element)
-                    (when-not (-wait-enabled element)
-                      (throw (timeout-ex "Can't fill element" (quoted (get-element-name element))
-                                         "because it is disabled")))
-                    (-exec-js "this.select()" {} element)
-                    (press-key cdt 'Backspace)
-                    (type-text cdt text chars-per-min)
-                    element)))))
+         (when-not (-wait-visible element)
+           (throw (timeout-ex "Can't fill element" (quoted (get-element-name element))
+                              "because it is not visible")))
+         (scroll-into-view-if-needed element)
+         (when-not (-wait-enabled element)
+           (throw (timeout-ex "Can't fill element" (quoted (get-element-name element))
+                              "because it is disabled")))
+         (-exec-js "this.select()" {} element)
+         (press-key cdt 'Backspace)
+         (type-text cdt text chars-per-min)
+         element)))))
 
 (defn choose
   "Chooses the given options (strings) from the given element. element must
@@ -1229,16 +1232,16 @@
     (check-arg [#(every? string? %) "strings"] [options "selected options"])
     (stale-as-ex (cuic-ex "Can't choose options from element" (quoted (get-element-name element))
                           "because it does not exist anymore")
-                 (when (not= "SELECT" (-js-prop element "this.tagName"))
-                   (throw (cuic-ex (quoted (get-element-name element)) "is not a valid select element")))
-                 (when-not (-wait-visible element)
-                   (throw (timeout-ex "Can't choose options from element" (quoted (get-element-name element))
-                                      "because it is not visible")))
-                 (scroll-into-view-if-needed element)
-                 (when-not (-wait-enabled element)
-                   (throw (timeout-ex "Can't choose options from element" (quoted (get-element-name element))
-                                      "because it is disabled")))
-                 (-exec-js "
+      (when (not= "SELECT" (-js-prop element "this.tagName"))
+        (throw (cuic-ex (quoted (get-element-name element)) "is not a valid select element")))
+      (when-not (-wait-visible element)
+        (throw (timeout-ex "Can't choose options from element" (quoted (get-element-name element))
+                           "because it is not visible")))
+      (scroll-into-view-if-needed element)
+      (when-not (-wait-enabled element)
+        (throw (timeout-ex "Can't choose options from element" (quoted (get-element-name element))
+                           "because it is disabled")))
+      (-exec-js "
         for (let o of this.options) {
           console.log(o)
           if ((o.selected = vals.includes(o.value)) && !this.multiple) {
@@ -1248,7 +1251,7 @@
         this.dispatchEvent(new Event('input', {bubbles: true}));
         this.dispatchEvent(new Event('change', {bubbles: true}));
         " {:vals options} element)
-                 nil)))
+      nil)))
 
 (defn add-files
   "Add files to the given element. Element must be a valid html file input
@@ -1274,21 +1277,21 @@
         (throw (cuic-ex "File does not exist:" (.getName ^File file)))))
     (stale-as-ex (cuic-ex "Can't add files to element" (quoted (get-element-name element))
                           "because it does not exist anymore")
-                 (when-not (-js-prop element "this.matches('input[type=file]')")
-                   (throw (cuic-ex (quoted (get-element-name element)) "is not a file input element")))
-                 (when-not (-wait-visible element)
-                   (throw (timeout-ex "Can't add files to element" (quoted (get-element-name element))
-                                      "because it is not visible")))
-                 (scroll-into-view-if-needed element)
-                 (when-not (-wait-enabled element)
-                   (throw (timeout-ex "Can't add files to element" (quoted (get-element-name element))
-                                      "because it is disabled")))
-                 (when (seq files)
-                   (invoke {:cdt  (get-element-cdt element)
-                            :cmd  "DOM.setFileInputFiles"
-                            :args {:nodeId (get-node-id element)
-                                   :files  (mapv #(.getAbsolutePath ^File %) files)}}))
-                 element)))
+      (when-not (-js-prop element "this.matches('input[type=file]')")
+        (throw (cuic-ex (quoted (get-element-name element)) "is not a file input element")))
+      (when-not (-wait-visible element)
+        (throw (timeout-ex "Can't add files to element" (quoted (get-element-name element))
+                           "because it is not visible")))
+      (scroll-into-view-if-needed element)
+      (when-not (-wait-enabled element)
+        (throw (timeout-ex "Can't add files to element" (quoted (get-element-name element))
+                           "because it is disabled")))
+      (when (seq files)
+        (invoke {:cdt  (get-element-cdt element)
+                 :cmd  "DOM.setFileInputFiles"
+                 :args {:nodeId (get-node-id element)
+                        :files  (mapv #(.getAbsolutePath ^File %) files)}}))
+      element)))
 
 ;;; misc
 

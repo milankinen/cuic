@@ -62,10 +62,11 @@ Each `cuic` function has a Clojure doc-string describing its behaviour and usage
 Generated API docs and guides are also available as **[cljdoc](https://cljdoc.org/d/cuic/cuic)**.
 
 * [Usage guide](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage)
+    * [Launching Chrome](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/launching-chrome)
     * [Searching elements](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/searching-elements)
     * [Interacting with page](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/interacting-with-page)
     * [Dealing with asynchrony](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/dealing-with-asynchrony)
-    * [Configuration](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/configuration)
+    * [Writing tests](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/writing-tests)
     * [REPL usage](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/repl-usage)
 
 ## Similar projects

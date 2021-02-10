@@ -7,7 +7,6 @@
             [cuic.internal.cdt :refer [invoke]]
             [cuic.internal.dom :refer [wrap-element
                                        element?
-                                       maybe-element?
                                        stale-as-nil
                                        stale-as-ex
                                        get-node-id
@@ -609,7 +608,7 @@
    for more info."
   [element]
   (rewrite-exceptions
-    (check-arg [maybe-element? "html element"] [element "element"])
+    (check-arg [element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't get client rect from element" (quoted (get-element-name element))
                           "because it does not exist anymore")
       (-bb element))))
@@ -618,7 +617,7 @@
   "Returns boolean whether the given element is visible in DOM or not"
   [element]
   (rewrite-exceptions
-    (check-arg [maybe-element? "html element"] [element "element"])
+    (check-arg [element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't check visibility of element" (quoted (get-element-name element))
                           "because it does not exist anymore")
       (-js-prop element "!!this.offsetParent"))))
@@ -628,7 +627,7 @@
    in the viewport"
   [element]
   (rewrite-exceptions
-    (check-arg [maybe-element? "html element"] [element "element"])
+    (check-arg [element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't check visibility of element" (quoted (get-element-name element))
                           "because it does not exist anymore")
       (-js-prop element "!!this.offsetParent && __CUIC__.isInViewport(this)"))))
@@ -638,7 +637,7 @@
    does not have parent (= document)"
   [element]
   (rewrite-exceptions
-    (check-arg [maybe-element? "html element"] [element "element"])
+    (check-arg [element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't get parent of element" (quoted (get-element-name element))
                           "because it does not exist anymore")
       (let [parent (-exec-js "return this.parentNode;" {} element false)
@@ -651,7 +650,7 @@
    element does not have children."
   [element]
   (rewrite-exceptions
-    (check-arg [maybe-element? "html element"] [element "element"])
+    (check-arg [element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't get children of element" (quoted (get-element-name element))
                           "because it does not exist anymore")
       (let [cdt (get-element-cdt element)]
@@ -672,7 +671,7 @@
    for more info."
   [element]
   (rewrite-exceptions
-    (check-arg [maybe-element? "html element"] [element "element"])
+    (check-arg [element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't get inner text from element" (quoted (get-element-name element))
                           "because it does not exist anymore")
       (-js-prop element "this.innerText"))))
@@ -683,7 +682,7 @@
    for more info."
   [element]
   (rewrite-exceptions
-    (check-arg [maybe-element? "html element"] [element "element"])
+    (check-arg [element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't get text content from element" (quoted (get-element-name element))
                           "because it does not exist anymore")
       (-js-prop element "this.textContent"))))
@@ -694,7 +693,7 @@
    will be returned using `:-#data` tag."
   [element]
   (rewrite-exceptions
-    (check-arg [maybe-element? "html element"] [element "element"])
+    (check-arg [element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't get outer html from element" (quoted (get-element-name element))
                           "because it does not exist anymore")
       (let [cdt (get-element-cdt element)
@@ -713,7 +712,7 @@
    input element"
   [element]
   (rewrite-exceptions
-    (check-arg [maybe-element? "html element"] [element "element"])
+    (check-arg [element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't get value from element" (quoted (get-element-name element))
                           "because it does not exist anymore")
       (when-not (-js-prop element "'value' in this")
@@ -725,7 +724,7 @@
    given element. Throws an exception if element is not a select element."
   [element]
   (rewrite-exceptions
-    (check-arg [maybe-element? "html element"] [element "element"])
+    (check-arg [element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't get options from element" (quoted (get-element-name element))
                           "because it does not exist anymore")
       (when (not= "SELECT" (-js-prop element "this.tagName"))
@@ -749,7 +748,7 @@
    ```"
   [element]
   (rewrite-exceptions
-    (check-arg [maybe-element? "html element"] [element "element"])
+    (check-arg [element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't get attributes from element" (quoted (get-element-name element))
                           "because it does not exist anymore")
       (let [cdt (get-element-cdt element)]
@@ -778,7 +777,7 @@
    ```"
   [element]
   (rewrite-exceptions
-    (check-arg [maybe-element? "html element"] [element "element"])
+    (check-arg [element? "html element"] [element "element"])
     (as-> (attributes element) $
           (get $ :class "")
           (string/split $ #"\s+")
@@ -791,7 +790,7 @@
    css class or not"
   [element class]
   (rewrite-exceptions
-    (check-arg [maybe-element? "html element"] [element "element"])
+    (check-arg [element? "html element"] [element "element"])
     (check-arg [string? "string"] [class "tested class name"])
     (contains? (classes element) class)))
 
@@ -800,7 +799,7 @@
    selector or not. Throws an exception if selector is not valid."
   [element selector]
   (rewrite-exceptions
-    (check-arg [maybe-element? "html element"] [element "element"])
+    (check-arg [element? "html element"] [element "element"])
     (check-arg [string? "string"] [selector "tested css selector"])
     (stale-as-ex (cuic-ex "Can't match css selector to element" (quoted (get-element-name element))
                           "because it does not exist anumore")
@@ -813,7 +812,7 @@
   "Returns boolean whether the given element has focus or not"
   [element]
   (rewrite-exceptions
-    (check-arg [maybe-element? "html element"] [element "element"])
+    (check-arg [element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't resolve focus from element" (quoted (get-element-name element))
                           "because it does not exist anymore")
       (-js-prop element "document.activeElement === this"))))
@@ -823,7 +822,7 @@
    an exception if the target element is not a valid input element."
   [element]
   (rewrite-exceptions
-    (check-arg [maybe-element? "html element"] [element "element"])
+    (check-arg [element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't resolve checked status from element" (quoted (get-element-name element))
                           "because it does not exist anymore")
       (when-not (-js-prop element "'checked' in this")
@@ -834,7 +833,7 @@
   "Returns boolean whether the given element is disabled or not."
   [element]
   (rewrite-exceptions
-    (check-arg [maybe-element? "html element"] [element "element"])
+    (check-arg [element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't resolve disabled status from element" (quoted (get-element-name element))
                           "because it does not exist anymore")
       (-js-prop element "!!this.disabled"))))

@@ -111,10 +111,6 @@
   [val]
   (instance? Element val))
 
-(defn maybe-element? [val]
-  (or (element? val)
-      (nil? val)))
-
 (defn wrap-element
   "Creates a new remote html element wrapper, referenced by element's
    backend node id"

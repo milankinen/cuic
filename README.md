@@ -2,7 +2,7 @@
 
 Clojure UI testing with Chrome
 
-[![Build Status](https://img.shields.io/travis/milankinen/cuic/master.svg?style=flat-square)](https://travis-ci.org/milankinen/cuic)
+[![Build status](https://img.shields.io/github/workflow/status/milankinen/cuic/Run%20tests/master?style=flat-square)](https://github.com/milankinen/cuic/actions?query=workflow%3A%22Run+tests%22)
 [![Clojars Project](https://img.shields.io/clojars/v/cuic.svg?style=flat-square)](https://clojars.org/cuic)
 [![cljdoc](https://img.shields.io/badge/cljdoc-latest-blue?style=flat-square)](https://cljdoc.org/d/cuic/cuic/CURRENT)
 

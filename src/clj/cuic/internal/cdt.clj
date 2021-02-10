@@ -4,8 +4,8 @@
             [gniazdo.core :as ws])
   (:import (java.lang AutoCloseable)
            (java.util.concurrent CountDownLatch TimeUnit)
-           (clojure.lang IDeref IFn)
            (java.net SocketTimeoutException)
+           (clojure.lang IDeref IFn Var)
            (org.eclipse.jetty.websocket.client WebSocketClient)
            (cuic DevtoolsProtocolException CuicException)))
 
@@ -145,7 +145,10 @@
          (every? string? methods)
          (ifn? callback)]}
   (let [{:keys [listeners]} cdt
-        cb #(callback %1 %2)]
+        frame (Var/cloneThreadBindingFrame)
+        cb (fn callback-wrapper [method args]
+             (Var/resetThreadBindingFrame frame)
+             (callback method args))]
     (doseq [method methods]
       (swap! listeners update method #(conj (or % #{}) cb)))
     (->Subscription cdt methods cb)))

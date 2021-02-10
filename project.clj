@@ -8,21 +8,22 @@
   :signing {:gpg-key "9DD8C3E9"}
   :clean-targets ^{:protect false} [:target-path "src/js/node_modules" "src/js/build"]
   :auto-clean false
+  :pedantic? :abort
   :dependencies
-  [[org.clojure/tools.logging "1.1.0"]
-   [org.clojure/data.json "1.0.0"]
-   [stylefruits/gniazdo "1.1.4"]
+  [[org.clojure/tools.logging "1.1.0" :exclusions [org.clojure/clojure]]
+   [org.clojure/data.json "1.0.0" :exclusions [org.clojure/clojure]]
+   [stylefruits/gniazdo "1.2.0" :exclusions [org.clojure/clojure]]
    [org.jsoup/jsoup "1.13.1"]]
   :source-paths ["src/clj"]
   :java-source-paths ["src/java"]
   :resource-paths ["resources" "src/js/build"]
   :profiles {:dev  {:dependencies
-                    [[org.clojure/clojure "1.10.1"]
-                     [http-kit "2.5.0"]
+                    [[org.clojure/clojure "1.10.2"]
+                     [http-kit "2.5.1"]
                      [compojure "1.6.2"]
                      [ch.qos.logback/logback-classic "1.2.3"]
                      [eftest "0.5.9"]
-                     [clj-kondo "2020.11.07"]]
+                     [clj-kondo "2021.01.20"]]
                     :repl-options
                     {:init-ns repl}
                     :plugins

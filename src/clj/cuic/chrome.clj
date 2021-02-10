@@ -9,6 +9,7 @@
             [cuic.internal.page :as page]
             [cuic.internal.runtime :as runtime])
   (:import (clojure.lang IPersistentVector IAtom)
+           (java.lang.reflect Method)
            (java.util List Scanner)
            (java.util.concurrent TimeUnit)
            (java.lang ProcessBuilder$Redirect AutoCloseable)
@@ -35,6 +36,14 @@
                          (Files/isExecutable %)))
            (first))
       (throw (CuicException. "Chrome binary not found" nil))))
+
+(defn- get-pid [^Process proc]
+  (try
+    (if-let [pid ^Method (.getMethod Process "pid" (into-array Class []))]
+      (.invoke pid proc (into-array Object []))
+      -1)
+    (catch Exception _
+      -1)))
 
 (defn- kill-proc [^Process proc]
   (when (.isAlive proc)
@@ -137,7 +146,7 @@
 (defmethod print-method Chrome [{:keys [^Process process args port data-dir]} writer]
   (let [props {:executable (first args)
                :pid        (when (.isAlive process)
-                             (.pid process))
+                             (get-pid process))
                :args       (subvec args 1)
                :data-dir   (str data-dir)
                :cdp-port   port}]

@@ -345,7 +345,6 @@
          proc (-> (ProcessBuilder. ^List (apply list args))
                   (.redirectErrorStream true)
                   (.redirectOutput ProcessBuilder$Redirect/PIPE)
-                  (.redirectErrorStream true)
                   (.start))
          loggers (start-loggers proc)
          until (+ (System/currentTimeMillis) timeout)]

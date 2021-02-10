@@ -152,11 +152,17 @@
    See namespace documentation for a complete usage example."
   [name & body]
   `(deftest ~name
-     (try
-       (binding [*current-cuic-test* {:ns ~(str *ns*) :name ~(str name)}]
-         ~@body)
-       (catch AbortTestError e#
-         nil))))
+     (let [test-ns-s# ~(str *ns*)
+           test-name-s# ~(str name)
+           full-name# (str test-ns-s# "$$" test-name-s# "$$")]
+       (try
+         (binding [*current-cuic-test* {:ns test-ns-s# :name test-name-s#}]
+           ~@body)
+         (catch AbortTestError e#
+           nil)
+         (catch Throwable e#
+           (-try-take-screenshot full-name# nil)
+           (throw e#))))))
 
 (defmacro is*
   "Basically a shortcut for `(is (c/wait <cond>))` but with some

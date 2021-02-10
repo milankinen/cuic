@@ -5,7 +5,7 @@
             [cuic.core :as c]
             [cuic.test :refer [deftest* is* browser-test-fixture]]
             [test-common :refer [forms-url]])
-  (:import (cuic CuicException)))
+  (:import (cuic CuicException TimeoutException)))
 
 (use-fixtures
   :once
@@ -57,9 +57,16 @@
         (c/click radio-b)
         (is* (not (c/checked? radio-a)))
         (is* (c/checked? radio-b))))
-    (testing "adding files"
-      (c/add-files (c/find "#files") (io/file "test/resources/foo.txt") (io/file "test/resources/bar.txt"))
-      (is* (has-text? "Added files: bar.txt, foo.txt")))
+    (let [files [(io/file "test/resources/foo.txt")
+                 (io/file "test/resources/bar.txt")]]
+      (testing "adding files"
+        (c/add-files (c/find "#files") files)
+        (is* (has-text? "Added files: bar.txt, foo.txt")))
+      (testing "adding hidden files"
+        (binding [c/*timeout* 1000]
+          (is (thrown? TimeoutException (c/add-files (c/find "#hidden-files") files))))
+        (c/add-files (c/find "#hidden-files") files {:allow-hidden? true})
+        (is* (has-text? "Added hidden files: bar.txt, foo.txt"))))
     (testing "scrolling node into viewport"
       (is (not (c/in-viewport? (c/find "#needs-scrolling-btn"))))
       (c/scroll-into-view (c/find "#needs-scrolling-btn"))

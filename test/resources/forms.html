@@ -201,6 +201,19 @@
   </script>
 </section>
 
+<section>
+  <input id="hidden-files" type="file" multiple style="display: none;"/>
+  <div id="hidden-file-names"></div>
+  <script type="text/javascript">
+    $.onready(() => {
+      $("#hidden-files").addEventListener("change", (event) => {
+        const names = [...event.target.files].map(file => file.name).sort().join(", ")
+        $("#hidden-file-names").innerText = "Added hidden files: " + (names || "-")
+      })
+    })
+  </script>
+</section>
+
 <section style="margin-top: 2500px;">
   <button id="needs-scrolling-btn">Click me</button>
   <div id="needs-scrolling-result"></div>

@@ -1296,35 +1296,47 @@
    The given files must be `java.io.File` instances and all of them
    must exist in the filesystem.
 
+   By default the target input must be visible. However, because it's very
+   common in modern web applications that file inputs are hidden due to their
+   bleak appearance, you can disable the visibility requirement by providing
+   `:allow-hidden? true` option. The input must still be enabled though.
+
    ```clojure
    (require '[clojure.java.io :as io])
    (def photo (c/find \"input#photo\"))
-   (c/add-files photo (io/file \"photos/profile.jpg\"))
+   (c/add-files photo [(io/file \"photos/profile.jpg\")])
+
+   ;; add profile picture to a hidden input
+   (c/add-files hidden-input [(io/file \"photos/profile.jpg\")] {:allow-hidden? true})
    ```"
-  [element & files]
-  (rewrite-exceptions
-    (check-arg [element? "html element"] [element "input element"])
-    (doseq [file files]
-      (check-arg [#(instance? File %) "file instance"] [file "file"])
-      (when-not (.exists ^File file)
-        (throw (cuic-ex "File does not exist:" (.getName ^File file)))))
-    (stale-as-ex (cuic-ex "Can't add files to element" (quoted (get-element-name element))
-                          "because it does not exist anymore")
-      (when-not (-js-prop element "this.matches('input[type=file]')")
-        (throw (cuic-ex (quoted (get-element-name element)) "is not a file input element")))
-      (when-not (-wait-visible element)
-        (throw (timeout-ex "Can't add files to element" (quoted (get-element-name element))
-                           "because it is not visible")))
-      (scroll-into-view-if-needed element)
-      (when-not (-wait-enabled element)
-        (throw (timeout-ex "Can't add files to element" (quoted (get-element-name element))
-                           "because it is disabled")))
-      (when (seq files)
-        (invoke {:cdt  (get-element-cdt element)
-                 :cmd  "DOM.setFileInputFiles"
-                 :args {:nodeId (get-node-id element)
-                        :files  (mapv #(.getAbsolutePath ^File %) files)}}))
-      element)))
+  ([element files]
+   (rewrite-exceptions (add-files element files {})))
+  ([element files {:keys [allow-hidden?] :or {allow-hidden? false}}]
+   (rewrite-exceptions
+     (check-arg [element? "html element"] [element "input element"])
+     (doseq [file files]
+       (check-arg [#(instance? File %) "file instance"] [file "file"])
+       (when-not (.exists ^File file)
+         (throw (cuic-ex "File does not exist:" (.getName ^File file)))))
+     (check-arg [boolean? "boolean"] [allow-hidden? "allow hidden flag"])
+     (stale-as-ex (cuic-ex "Can't add files to element" (quoted (get-element-name element))
+                           "because it does not exist anymore")
+       (when-not (-js-prop element "this.matches('input[type=file]')")
+         (throw (cuic-ex (quoted (get-element-name element)) "is not a file input element")))
+       (when-not (or allow-hidden? (-wait-visible element))
+         (throw (timeout-ex "Can't add files to element" (quoted (get-element-name element))
+                            "because it is not visible")))
+       (when (-js-prop element "!!this.offsetParent")
+         (scroll-into-view-if-needed element))
+       (when-not (-wait-enabled element)
+         (throw (timeout-ex "Can't add files to element" (quoted (get-element-name element))
+                            "because it is disabled")))
+       (when (seq files)
+         (invoke {:cdt  (get-element-cdt element)
+                  :cmd  "DOM.setFileInputFiles"
+                  :args {:nodeId (get-node-id element)
+                         :files  (mapv #(.getAbsolutePath ^File %) files)}}))
+       element))))
 
 ;;; misc
 

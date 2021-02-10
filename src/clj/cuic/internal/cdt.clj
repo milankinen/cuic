@@ -102,9 +102,9 @@
                   r)))
             IFn
             (invoke [this x]
-              (when (and (pos? (.getCount d)))
-                (when (compare-and-set! v d x)
-                  (swap! (:promises cdt) disj this)))
+              (when (and (pos? (.getCount d))
+                         (compare-and-set! v d x))
+                (swap! (:promises cdt) disj this))
               (.countDown d)
               x))]
     (swap! (:promises cdt) conj p)

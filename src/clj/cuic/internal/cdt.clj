@@ -5,8 +5,9 @@
   (:import (java.lang AutoCloseable)
            (java.util.concurrent CountDownLatch TimeUnit)
            (clojure.lang IDeref IFn)
+           (java.net SocketTimeoutException)
            (org.eclipse.jetty.websocket.client WebSocketClient)
-           (cuic DevtoolsProtocolException)))
+           (cuic DevtoolsProtocolException CuicException)))
 
 (set! *warn-on-reflection* true)
 
@@ -47,28 +48,33 @@
 (defn cdt? [x]
   (instance? ChromeDeveloperTools x))
 
-(defn connect [ws-url]
-  {:pre [(string? ws-url)]}
-  (let [reqs (atom {})
-        listeners (atom {})
-        promises (atom #{})
-        next-id (atom 0)
-        on-receive (partial handle-message reqs listeners)
-        on-error handle-error
-        on-close (partial handle-close promises)
-        client (let [c ^WebSocketClient (ws/client)]
-                 (doto (.getPolicy c)
-                   (.setIdleTimeout 0)
-                   (.setMaxTextMessageSize (* 50 1024 1024)))
-                 (doto c
-                   (.start)))
-        socket (ws/connect
-                 ws-url
-                 :client client
-                 :on-receive on-receive
-                 :on-error on-error
-                 :on-close on-close)]
-    (->ChromeDeveloperTools socket reqs listeners promises next-id)))
+(defn connect [{:keys [url timeout]}]
+  {:pre [(string? url)
+         (pos-int? timeout)]}
+  (try
+    (let [reqs (atom {})
+          listeners (atom {})
+          promises (atom #{})
+          next-id (atom 0)
+          on-receive (partial handle-message reqs listeners)
+          on-error handle-error
+          on-close (partial handle-close promises)
+          client (let [c ^WebSocketClient (ws/client)]
+                   (doto (.getPolicy c)
+                     (.setIdleTimeout 0)
+                     (.setMaxTextMessageSize (* 50 1024 1024)))
+                   (doto c
+                     (.setConnectTimeout timeout)
+                     (.start)))
+          socket (ws/connect
+                   url
+                   :client client
+                   :on-receive on-receive
+                   :on-error on-error
+                   :on-close on-close)]
+      (->ChromeDeveloperTools socket reqs listeners promises next-id))
+    (catch SocketTimeoutException ex
+      (throw (CuicException. "Chrome Devtools Websocket connection timeout" ex)))))
 
 (defn disconnect [cdt]
   {:pre [(cdt? cdt)]}

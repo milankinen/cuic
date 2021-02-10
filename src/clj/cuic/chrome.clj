@@ -1,4 +1,5 @@
 (ns cuic.chrome
+  "Functions for Chrome process launching and management"
   (:require [clojure.spec.alpha :as s]
             [clojure.tools.logging :refer [trace debug warn error]]
             [clojure.java.io :as io]
@@ -356,7 +357,7 @@
              _ (trace "Got tabs" tabs)
              ws-url (-> tabs (first) :webSocketDebuggerUrl)
              _ (trace "Using Devtools websocket url" ws-url)
-             cdt (cdt/connect ws-url)]
+             cdt (cdt/connect {:url ws-url :timeout timeout})]
          (debug "Connected to Chrome Devtools at port" port)
          (when tmp-data-dir
            (doto (.toFile tmp-data-dir)

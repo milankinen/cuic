@@ -70,9 +70,13 @@
     (trace "Chrome output logger stopped")))
 
 (defn- start-loggers [^Process proc]
-  (doto (Thread. #(log-proc-output proc))
+  (doto (Thread. (reify Runnable (run [_] (log-proc-output proc))))
     (.setDaemon true)
     (.start)))
+
+(defn- stop-loggers [^Thread loggers]
+  (.interrupt loggers)
+  (.join loggers 1000))
 
 (defn- delete-data-dir [^Path dir-path]
   (when dir-path
@@ -126,6 +130,13 @@
         (do (Thread/sleep 100)
             (recur host port until)))))
 
+(defn- close-safely [body]
+  {:pre [(fn? body)]}
+  (try
+    (body)
+    (catch Exception ex
+      (error ex "Unexpected Chrome shutdown error occurred"))))
+
 (defrecord ^:no-doc Chrome
   [^Process process
    ^Thread loggers
@@ -138,11 +149,12 @@
   (close [_]
     (when-let [{:keys [page cdt]} @tools]
       (reset! tools nil)
-      (page/detach page)
-      (cdt/disconnect cdt)
-      (kill-proc process)
+      (close-safely #(page/detach page))
+      (close-safely #(cdt/disconnect cdt))
+      (close-safely #(kill-proc process))
+      (close-safely #(stop-loggers loggers))
       (when destroy-data-dir?
-        (delete-data-dir data-dir)))))
+        (close-safely #(delete-data-dir data-dir))))))
 
 (defmethod print-method Chrome [{:keys [^Process process args port data-dir]} writer]
   (let [props {:executable (first args)

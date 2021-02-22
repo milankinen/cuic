@@ -1,6 +1,6 @@
 (ns ^:no-doc cuic.internal.cdt
   (:require [clojure.data.json :as json]
-            [clojure.tools.logging :refer [info error]]
+            [clojure.tools.logging :refer [debug info error]]
             [gniazdo.core :as ws])
   (:import (java.lang AutoCloseable)
            (java.util.concurrent CountDownLatch TimeUnit)
@@ -25,12 +25,11 @@
               (li method params)
               (catch Exception ex
                 (error ex "Error occurred while handling event, method =" method)))))))
-
     (catch Throwable ex
       (error ex "Chrome Devtools WebSocket message receive error occurred"))))
 
 (defn- handle-close [promises code reason]
-  (info "Chrome Devtools WebSocket connetion closed, code =" code "reason =" reason)
+  (debug "Chrome Devtools WebSocket connetion closed, code =" code "reason =" reason)
   (let [xs @promises]
     (reset! promises #{})
     (doseq [x xs] (deliver x ::closed))))

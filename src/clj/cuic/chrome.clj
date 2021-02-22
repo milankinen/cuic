@@ -62,7 +62,8 @@
     (try
       (while (and (.hasNext scanner)
                   (not (Thread/interrupted)))
-        (trace (.next scanner)))
+        (let [output-line (.next scanner)]
+          (trace output-line)))
       (catch InterruptedException _)
       (catch Exception ex
         (error ex "Unexpected exception occurred while reading Chrome output")))

@@ -72,7 +72,7 @@
   (is (c/disabled? (c/find "#textarea")))
   (is (not (c/disabled? (c/find "#input")))))
 
-(deftest* node-gets-removed-between-query-and-getter
+(deftest* node-gets-removed-from-dom-between-query-and-getter
   (c/goto forms-url)
   (let [rm-btn (c/find "#remove-input")
         input (c/find "#input-to-remove")]
@@ -83,12 +83,6 @@
     (c/click rm-btn)
     (is* (c/disabled? rm-btn))
     (testing "property obtained via js execution"
-      (is (thrown-with-msg?
-            CuicException
-            #"Can't get value from element .+ because it does not exist anymore"
-            (c/value input))))
+      (is (= "..." (c/value input))))
     (testing "property obtained via cdt call"
-      (is (thrown-with-msg?
-            CuicException
-            #"Can't get attributes from element .+ because it does not exist anymore"
-            (c/attributes input))))))
+      (is (map? (c/attributes input))))))

@@ -7,16 +7,21 @@
 (defrecord Page [cdt state subscription]
   AutoCloseable
   (close [_]
+    (reset! state nil)
     (off subscription)))
 
 (defn- main-frame-id [page]
   (get-in @(:state page) [:main-frame :id]))
 
-(defn- handle-lifecycle-event [state {:keys [name frameId]}]
+(defn- loader-id [page]
+  (get-in @(:state page) [:main-frame :loaderId]))
+
+(defn- handle-lifecycle-event [state {:keys [name frameId loaderId]}]
   (letfn [(handle [{:keys [main-frame] :as s}]
             (if (= (:id main-frame) frameId)
               (if (= "init" name)
-                (assoc s :events #{})
+                (-> (assoc s :events #{})
+                    (assoc-in [:main-frame :loaderId] loaderId))
                 (update s :events conj name))
               s))]
     (swap! state handle)))
@@ -76,7 +81,11 @@
 
 (defn detach [page]
   {:pre [(page? page)]}
-  #_(.close ^Page page))
+  (.close ^Page page))
+
+(defn detached? [page]
+  {:pre [(page? page)]}
+  (nil? @(:state page)))
 
 (defn navigate-to [{:keys [cdt] :as page} url timeout]
   {:pre [(page? page)
@@ -116,3 +125,11 @@
                      :args {:entryId (:id entry)}})]
     (when entry
       (navigate page op timeout))))
+
+(defn get-page-cdt [page]
+  {:pre [(page? page)]}
+  (:cdt page))
+
+(defn get-page-loader-id [page]
+  {:pre [(page? page)]}
+  (loader-id page))

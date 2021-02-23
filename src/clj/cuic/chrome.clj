@@ -144,13 +144,13 @@
    ^String data-dir
    ^Boolean destroy-data-dir?
    ^Long port
-   ^IAtom tools]
+   ^IAtom page]
   AutoCloseable
   (close [_]
-    (when-let [{:keys [page cdt]} @tools]
-      (reset! tools nil)
-      (close-safely #(page/detach page))
-      (close-safely #(cdt/disconnect cdt))
+    (when-let [p @page]
+      (reset! page nil)
+      (close-safely #(page/detach p))
+      (close-safely #(cdt/disconnect (page/get-page-cdt p)))
       (close-safely #(kill-proc process))
       (close-safely #(stop-loggers loggers))
       (when destroy-data-dir?
@@ -171,10 +171,6 @@
             (Long/parseLong))
     (catch Exception _)))
 
-(defn- get-tools [chrome]
-  (or @(:tools chrome)
-      (throw (CuicException. "Browser is closed"))))
-
 ;;
 ;;
 
@@ -183,12 +179,13 @@
   [val]
   (instance? Chrome val))
 
-(defn ^:no-doc page
+(defn ^:no-doc get-current-page
   "Returns internal page object for the given Chrome instance. Do not
    use in your app code!"
   [chrome]
   {:pre [(chrome? chrome)]}
-  (:page (get-tools chrome)))
+  (or @(:page chrome)
+      (throw (CuicException. "Browser is closed"))))
 
 (s/def ::width pos-int?)
 (s/def ::height pos-int?)
@@ -391,7 +388,7 @@
                    data-dir
                    (nil? custom-data-dir)
                    port
-                   (atom {:cdt cdt :page (page/attach cdt)})))
+                   (atom (page/attach cdt))))
        (catch Exception e
          (error e "Unexpected error occurred while connecting to Chrome Devtools")
          (kill-proc proc)
@@ -407,12 +404,13 @@
   {:pre [(chrome? chrome)]}
   (.close ^Chrome chrome))
 
-(defn ^:no-doc devtools
-  "Returns handle to the Chrome devtools. Not exposed as public
-   function because the lack of public low-level API."
+(defn devtools
+  "Returns handle to the Chrome devtools. To use the returned devtools,
+   see functions from [[cuic.protocol]] namespace."
   [chrome]
   {:pre [(chrome? chrome)]}
-  (:cdt (get-tools chrome)))
+  (-> (get-current-page chrome)
+      (page/get-page-cdt)))
 
 (defn set-cache-disabled
   "Toggles ignoring cache for each request. If `true`, cache

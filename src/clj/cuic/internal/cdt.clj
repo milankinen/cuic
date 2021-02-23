@@ -1,6 +1,6 @@
 (ns ^:no-doc cuic.internal.cdt
   (:require [clojure.data.json :as json]
-            [clojure.tools.logging :refer [debug info error]]
+            [clojure.tools.logging :refer [debug error]]
             [gniazdo.core :as ws])
   (:import (java.lang AutoCloseable)
            (java.util.concurrent CountDownLatch TimeUnit)
@@ -109,11 +109,13 @@
     (swap! (:promises cdt) conj p)
     p))
 
-(defn invoke [{:keys [cdt cmd args timeout]
-               :or   {timeout 10000}}]
+(defn invoke [{:keys [cdt cmd args timeout block?]
+               :or   {timeout 10000
+                      block?  true}}]
   {:pre [(cdt? cdt)
          (string? cmd)
-         (map? args)]}
+         (map? args)
+         (boolean? block?)]}
   (let [{:keys [socket requests next-id]} cdt
         req-id (dec (swap! next-id inc))
         payload {:id     req-id
@@ -123,10 +125,11 @@
         res-p (cdt-promise cdt timeout)]
     (swap! requests assoc req-id res-p)
     (ws/send-msg socket body)
-    (let [{:keys [result error]} @res-p]
-      (when error
-        (throw (DevtoolsProtocolException. (:message error) (:code error))))
-      result)))
+    (let [d (delay (let [{:keys [result error]} @res-p]
+                     (when error
+                       (throw (DevtoolsProtocolException. (:message error) (:code error))))
+                     result))]
+      (if block? @d d))))
 
 (defrecord Subscription [cdt methods callback]
   AutoCloseable

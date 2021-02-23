@@ -5,9 +5,9 @@
 
   See https://chromedevtools.github.io/devtools-protocol for
   the complete DevTools Protocol reference."
-  (:refer-clojure :exclude [promise])
   (:require [cuic.core :refer [*timeout*]]
             [cuic.internal.cdt :as cdt]
+            [cuic.internal.runtime :as runtime]
             [cuic.internal.dom :as dom]
             [cuic.internal.util :refer [check-arg rewrite-exceptions]]))
 
@@ -97,11 +97,11 @@
   [element]
   (rewrite-exceptions
     (check-arg [dom/element? "html element"] [element "element"])
-    (dom/get-node-id element {:dom? false})))
+    (dom/get-node-id element)))
 
 (defn object-id
   "Returns [RemoveObjectId](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#type-RemoteObjectId)
-   for the given html element.
+   for the given javascript object handle.
 
    ```clojure
    (let [query-input (c/find \".query\")]
@@ -110,7 +110,7 @@
              {:objectId (object-id query-input)
               :ownProperties true}))
    ```"
-  [element]
+  [obj]
   (rewrite-exceptions
-    (check-arg [dom/element? "html element"] [element "element"])
-    (dom/get-object-id element {:dom? false})))
+    (check-arg [runtime/js-object? "javascript object handle"] [obj "object"])
+    (runtime/get-object-id obj)))

@@ -2,7 +2,8 @@
   (:import (java.util Base64)
            (java.net MalformedURLException URI URISyntaxException)
            (cuic CuicException TimeoutException)
-           (cuic DevtoolsProtocolException)))
+           (cuic DevtoolsProtocolException)
+           (cuic.internal StaleObjectException)))
 
 (set! *warn-on-reflection* true)
 
@@ -58,3 +59,14 @@
          (throw ce#))
        (.setStackTrace ce# (into-array (next (seq (.getStackTrace (Exception.))))))
        (throw ce#))))
+
+(defmacro stale-as-nil [& body]
+  `(try
+     ~@body
+     (catch StaleObjectException ex#)))
+
+(defmacro stale-as-ex [ex & body]
+  `(try
+     ~@body
+     (catch StaleObjectException ex#
+       (throw ~ex))))

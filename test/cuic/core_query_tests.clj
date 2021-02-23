@@ -17,7 +17,7 @@
   :each
   (forms-test-fixture))
 
-(deftest find-tests
+(deftest* find-tests
   (binding [c/*timeout* 1000]
     (testing "implicit wait until node is found from dom"
       (is (some? (c/find "#delayed-node-trigger")))
@@ -27,11 +27,11 @@
     (testing "node naming and error messages"
       (is (thrown-with-msg?
             CuicException
-            #"Could not find element from \"document\" with selector \".non-existing\" in 1000 milliseconds"
+            #"Could not find element from \"#document\" with selector \".non-existing\" in 1000 milliseconds"
             (c/find ".non-existing")))
       (is (thrown-with-msg?
             CuicException
-            #"Could not find element \"MyNode\" from \"document\" with selector \".non-existing\" in 1000 milliseconds"
+            #"Could not find element \"MyNode\" from \"#document\" with selector \".non-existing\" in 1000 milliseconds"
             (c/find {:by ".non-existing"
                      :as "MyNode"})))))
   (binding [c/*timeout* 100]
@@ -55,7 +55,7 @@
               #"Could not find element from \"Context\" with selector \"#hello\" in \d+ milliseconds"
               (c/in named-ctx-2 (c/find "#hello"))))))))
 
-(deftest query-tests
+(deftest* query-tests
   (testing "the found nodes are returned without waiting"
     (is (some? (c/find "#delayed-node-trigger")))
     (is (nil? (c/query "#delayed-node")))

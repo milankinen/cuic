@@ -3,14 +3,11 @@
   (:refer-clojure :exclude [find type name])
   (:require [clojure.core :as core]
             [clojure.string :as string]
-            [cuic.chrome :refer [chrome? devtools page]]
-            [cuic.internal.cdt :refer [invoke]]
-            [cuic.internal.dom :refer [wrap-element
+            [cuic.chrome :refer [chrome? devtools get-current-page]]
+            [cuic.internal.cdt :refer [invoke ex-code]]
+            [cuic.internal.dom :refer [with-element-meta
                                        element?
-                                       stale-as-nil
-                                       stale-as-ex
-                                       get-node-id
-                                       get-object-id
+                                       document?
                                        get-element-name
                                        get-custom-name
                                        get-element-cdt
@@ -18,9 +15,12 @@
             [cuic.internal.page :refer [navigate-to
                                         navigate-forward
                                         navigate-back]]
-            [cuic.internal.runtime :refer [get-window
-                                           window?
-                                           exec-js-code
+            [cuic.internal.runtime :refer [js-object?
+                                           get-object-id
+                                           eval-sync
+                                           call-sync
+                                           call-async
+                                           get-window
                                            scroll-into-view-if-needed]]
             [cuic.internal.input :refer [mouse-move
                                          mouse-click
@@ -28,6 +28,8 @@
                                          press-key]]
             [cuic.internal.html :refer [parse-document parse-element boolean-attributes]]
             [cuic.internal.util :refer [rewrite-exceptions
+                                        stale-as-nil
+                                        stale-as-ex
                                         cuic-ex
                                         timeout-ex
                                         check-arg
@@ -35,7 +37,7 @@
                                         decode-base64
                                         url-str?]])
   (:import (java.io File)
-           (cuic TimeoutException)))
+           (cuic TimeoutException DevtoolsProtocolException)))
 
 (set! *warn-on-reflection* true)
 
@@ -271,7 +273,7 @@
   ([browser]
    (rewrite-exceptions
      (check-arg [chrome? "chrome instance"] [browser "given browser"])
-     (get-window (devtools browser)))))
+     (get-window (get-current-page browser)))))
 
 (defn document
   "Returns a document object (HTML element) for the current default
@@ -281,14 +283,8 @@
   ([browser]
    (rewrite-exceptions
      (check-arg [chrome? "chrome instance"] [browser "given browser"])
-     (let [cdt (devtools browser)
-           res (invoke {:cdt  cdt
-                        :cmd  "DOM.getDocument"
-                        :args {:depth 0}})
-           doc (wrap-element cdt (:root res) nil "document" nil)]
-       (when (nil? doc)
-         (throw (cuic-ex "Cound not get page document")))
-       (vary-meta doc assoc ::document? true)))))
+     (eval-sync {:page (get-current-page browser)
+                 :code "return document"}))))
 
 (defn active-element
   "Returns active element (HTML element) for the current default
@@ -300,17 +296,8 @@
    (rewrite-exceptions
      (stale-as-ex (cuic-ex "Couldn't get active element")
        (check-arg [chrome? "chrome instance"] [browser "given browser"])
-       (let [cdt (devtools browser)
-             res (invoke {:cdt  cdt
-                          :cmd  "Runtime.evaluate"
-                          :args {:expression "document.activeElement"}})
-             obj (:result res)]
-         (when obj
-           (when-let [node (-> (invoke {:cdt  cdt
-                                        :cmd  "DOM.describeNode"
-                                        :args (select-keys obj [:objectId])})
-                               (:node))]
-             (wrap-element cdt node nil (:description obj) nil))))))))
+       (eval-sync {:page (get-current-page browser)
+                   :code "return document.activeElement"})))))
 
 (defn find
   "Tries to find **exactly one** html element by the given css
@@ -357,29 +344,22 @@
               _ (check-arg [string? "string"] [by "selector"])
               _ (check-arg [#(or (string? %) (nil? %)) "string"] [as "alias"])
               _ (check-arg [nat-int? "positive integer or zero"] [timeout "timeout"])
-              cdt (devtools (-require-default-browser))
-              ctx-id (or (stale-as-nil (get-node-id ctx))
-                         (throw (cuic-ex "Could not find element" (quoted (or as by)) "because"
-                                         "context element" (quoted (get-element-name ctx)) "does not"
-                                         "exist anymore")))
               start-t (System/currentTimeMillis)]
           (loop []
-            (let [result (invoke {:cdt  cdt
-                                  :cmd  "DOM.querySelectorAll"
-                                  :args {:nodeId ctx-id :selector by}})
-                  node-ids (:nodeIds result)
-                  n-nodes (count node-ids)
+            (let [nodes (call-sync {:code "return Array.from(this.querySelectorAll(s))"
+                                    :this ctx
+                                    :args {:s by}})
                   elapsed (- (System/currentTimeMillis) start-t)]
-              (case n-nodes
+              (case (count nodes)
                 0 (if (< elapsed timeout)
                     (do (sleep (min 100 (- *timeout* elapsed)))
                         (recur))
                     (throw (timeout-ex "Could not find element" (quoted as) "from"
                                        (quoted (get-element-name ctx)) "with selector"
                                        (quoted by) "in" timeout "milliseconds")))
-                1 (or (stale-as-nil (wrap-element cdt {:nodeId (first node-ids)} ctx as by))
+                1 (or (stale-as-nil (with-element-meta (first nodes) ctx as by))
                       (recur))
-                (throw (cuic-ex "Found too many" (str "(" n-nodes ")") (quoted as)
+                (throw (cuic-ex "Found too many" (str "(" (count nodes) ")") (quoted as)
                                 "html elements from" (quoted (get-element-name ctx))
                                 "with selector" (quoted by)))))))
         (recur {:by selector})))))
@@ -432,36 +412,17 @@
               ctx (or in *query-scope* (document))
               _ (check-arg [element? "html element"] [ctx "context"])
               _ (check-arg [string? "string"] [by "selector"])
-              _ (check-arg [#(or (string? %) (nil? %)) "string"] [as "alias"])
-              cdt (devtools (-require-default-browser))
-              ctx-id (or (stale-as-nil (get-node-id ctx))
-                         (throw (cuic-ex "Could not query" (quoted as) "elements with selector"
-                                         (quoted by) "because context element" (quoted (get-element-name ctx))
-                                         "does not exist anymore")))]
-          (->> (invoke {:cdt  cdt
-                        :cmd  "DOM.querySelectorAll"
-                        :args {:nodeId ctx-id :selector by}})
-               (:nodeIds)
-               (keep #(stale-as-nil (wrap-element cdt {:nodeId %} ctx as by)))
-               (vec)
-               (doall)
+              _ (check-arg [#(or (string? %) (nil? %)) "string"] [as "alias"])]
+          (->> (call-sync {:code "return Array.from(this.querySelectorAll(s))"
+                           :this ctx
+                           :args {:s by}})
+               (mapv #(with-element-meta % ctx as by))
                (not-empty)))
         (recur {:by selector})))))
 
 ;;;
 ;;; js code execution
 ;;;
-
-(defn- -exec-js
-  ([code args this] (-exec-js code args this true))
-  ([code args this return-by-value]
-   (let [result (exec-js-code {:code            code
-                               :args            args
-                               :this            this
-                               :return-by-value return-by-value})]
-     (if-let [error (:error result)]
-       (throw (cuic-ex (str "JavaScript error occurred:\n\n" error)))
-       (:return result)))))
 
 (defn eval-js
   "Evaluates the given JavaScript expression in the given `this` object
@@ -515,10 +476,10 @@
    (rewrite-exceptions
      (check-arg [string? "string"] [expr "expression"])
      (check-arg [map? "map"] [args "call arguments"])
-     (check-arg [#(or (element? %) (window? %)) "html element or window object"] [this "this binding"])
+     (check-arg [js-object? "javascript object"] [this "this binding"])
      (stale-as-ex (cuic-ex "Can't evaluate JavaScript expression on" (quoted this)
                            "because it does not exist anymore")
-       (-exec-js (str "return " expr ";") args this)))))
+       (call-async {:code (str "return (" expr ");") :this this :args args})))))
 
 (defn exec-js
   "Executes the given JavaScript function body in the given `this`
@@ -571,10 +532,10 @@
    (rewrite-exceptions
      (check-arg [string? "string"] [body "function body"])
      (check-arg [map? "map"] [args "call arguments"])
-     (check-arg [#(or (element? %) (window? %)) "html element or window"] [this "this binding"])
+     (check-arg [js-object? "javascript object"] [this "this binding"])
      (stale-as-ex (cuic-ex "Can't execute JavaScript code on" (quoted this)
                            "because it does not exist anymore")
-       (-exec-js body args this)))))
+       (call-async {:code body :this this :args args})))))
 
 ;;;
 ;;; properties
@@ -584,16 +545,19 @@
   ([element js-expr] (-js-prop element js-expr {}))
   ([element js-expr args]
    (let [code (str "return " (string/replace js-expr #"\n\s+" " ") ";")]
-     (-exec-js code args element))))
+     (call-sync {:code code :this element :args args}))))
 
 (defn- -bb [element]
-  (-exec-js "let r = this.getBoundingClientRect();
-             return {
-               top: r.top,
-               left: r.left,
-               width: r.width,
-               height: r.height
-             };" {} element))
+  (call-sync
+    {:code "
+       let r = this.getBoundingClientRect();
+       return {
+         top: r.top,
+         left: r.left,
+         width: r.width,
+         height: r.height
+       };"
+     :this element}))
 
 (defn client-rect
   "Returns the bounding client rect for the given element as a map of:
@@ -640,10 +604,9 @@
     (check-arg [element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't get parent of element" (quoted (get-element-name element))
                           "because it does not exist anymore")
-      (let [parent (-exec-js "return this.parentNode;" {} element false)
-            cdt (get-element-cdt element)]
-        (when (:objectId parent)
-          (wrap-element cdt parent nil nil nil))))))
+      (let [parent (call-sync {:code "return this.parentNode;" :this element})]
+        (when parent
+          (with-element-meta parent nil nil nil))))))
 
 (defn children
   "Returns children of the given html element as a vector or `nil` if
@@ -653,17 +616,7 @@
     (check-arg [element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't get children of element" (quoted (get-element-name element))
                           "because it does not exist anymore")
-      (let [cdt (get-element-cdt element)]
-        (some->> (invoke {:cdt  cdt
-                          :cmd  "DOM.describeNode"
-                          :args {:objectId (get-object-id element {:dom? true})
-                                 :depth    1}})
-                 (:node)
-                 (:children)
-                 (map #(wrap-element cdt % nil nil nil))
-                 (doall)
-                 (seq)
-                 (vec))))))
+      (not-empty (-js-prop element "Array.from(this.chidlren)")))))
 
 (defn inner-text
   "Returns the inner text of the given html element. See
@@ -696,15 +649,11 @@
     (check-arg [element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't get outer html from element" (quoted (get-element-name element))
                           "because it does not exist anymore")
-      (let [cdt (get-element-cdt element)
-            node-id (get-node-id element)
-            html (-> (invoke {:cdt  cdt
-                              :cmd  "DOM.getOuterHTML"
-                              :args {:nodeId node-id}})
-                     (:outerHTML))]
-        (if (::document? (meta element))
-          (parse-document html)
-          (parse-element html))))))
+      (if (document? element)
+        (-> (-js-prop element "this.querySelector('html').outerHTML")
+            (parse-document))
+        (-> (-js-prop element "this.outerHTML")
+            (parse-element))))))
 
 (defn value
   "Returns the current string value of the given input/select/textarea
@@ -751,14 +700,9 @@
     (check-arg [element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't get attributes from element" (quoted (get-element-name element))
                           "because it does not exist anymore")
-      (let [cdt (get-element-cdt element)]
-        (->> (invoke {:cdt  cdt
-                      :cmd  "DOM.getAttributes"
-                      :args {:nodeId (get-node-id element)}})
-             (:attributes)
-             (partition-all 2 2)
-             (map (fn [[k v]] [(keyword k) (if (contains? boolean-attributes k) true v)]))
-             (into {}))))))
+      (->> (-js-prop element "[...this.attributes].map(a => [a.name, a.value.toString()])")
+           (map (fn [[k v]] [(keyword k) (if (contains? boolean-attributes k) true v)]))
+           (into {})))))
 
 (defn classes
   "Returns a set of css classes (as strings) for the given element. Returns
@@ -895,7 +839,7 @@
                       url)]
        (check-arg [url-str? "valid url string"] [full-url "url"])
        (check-arg [nat-int? "positive integer or zero"] [timeout "timeout"])
-       (navigate-to (page browser) full-url timeout))
+       (navigate-to (get-current-page browser) full-url timeout))
      nil)))
 
 (defn go-back
@@ -920,7 +864,7 @@
             :or   {timeout *timeout*}} opts
            browser (or browser (-require-default-browser))]
        (check-arg [nat-int? "positive integer or zero"] [timeout "timeout"])
-       (boolean (navigate-back (page browser) timeout))))))
+       (boolean (navigate-back (get-current-page browser) timeout))))))
 
 (defn go-forward
   "Simulates browser forward button click. Returns boolean whether the
@@ -944,7 +888,7 @@
             :or   {timeout *timeout*}} opts
            browser (or browser (-require-default-browser))]
        (check-arg [nat-int? "positive integer or zero"] [timeout "timeout"])
-       (boolean (navigate-forward (page browser) timeout))))))
+       (boolean (navigate-forward (get-current-page browser) timeout))))))
 
 (defn type
   "Simulates keyboard typing. Characters are pressed and released one by one
@@ -1145,11 +1089,9 @@
       (when-not (-wait-enabled element)
         (throw (timeout-ex "Can't focus on element" (quoted (get-element-name element))
                            "because it is disabled")))
-      (let [cdt (get-element-cdt element)]
-        (invoke {:cdt  cdt
-                 :cmd  "DOM.focus"
-                 :args {:nodeId (get-node-id element)}})
-        element))))
+      (call-sync {:code "this.focus()"
+                  :this element})
+      element)))
 
 (defn select-text
   "First scrolls the given element into view (if needed) and then selects
@@ -1172,7 +1114,7 @@
       (when-not (-wait-enabled element)
         (throw (timeout-ex "Can't select text from element" (quoted (get-element-name element))
                            "because it is disabled")))
-      (-exec-js "this.select()" {} element)
+      (call-sync {:code "this.select()" :this element})
       element)))
 
 (defn clear-text
@@ -1196,7 +1138,7 @@
       (when-not (-wait-enabled element)
         (throw (timeout-ex "Can't clear text from element" (quoted (get-element-name element))
                            "because it is disabled")))
-      (-exec-js "this.select()" {} element)
+      (call-sync {:code "this.select()" :this element})
       (press-key (get-element-cdt element) 'Backspace)
       element)))
 
@@ -1246,7 +1188,7 @@
          (when-not (-wait-enabled element)
            (throw (timeout-ex "Can't fill element" (quoted (get-element-name element))
                               "because it is disabled")))
-         (-exec-js "this.select()" {} element)
+         (call-sync {:code "this.select()" :this element})
          (press-key cdt 'Backspace)
          (type-text cdt text chars-per-min)
          element)))))
@@ -1274,16 +1216,19 @@
       (when-not (-wait-enabled element)
         (throw (timeout-ex "Can't choose options from element" (quoted (get-element-name element))
                            "because it is disabled")))
-      (-exec-js "
-        for (let o of this.options) {
-          console.log(o)
-          if ((o.selected = vals.includes(o.value)) && !this.multiple) {
-            break;
-          }
-        }
-        this.dispatchEvent(new Event('input', {bubbles: true}));
-        this.dispatchEvent(new Event('change', {bubbles: true}));
-        " {:vals options} element)
+      (call-sync
+        {:code "
+           for (let o of this.options) {
+             console.log(o)
+             if ((o.selected = vals.includes(o.value)) && !this.multiple) {
+               break;
+             }
+           }
+           this.dispatchEvent(new Event('input', {bubbles: true}));
+           this.dispatchEvent(new Event('change', {bubbles: true}));
+           "
+         :args {:vals options}
+         :this element})
       nil)))
 
 (defn add-files
@@ -1332,10 +1277,16 @@
          (throw (timeout-ex "Can't add files to element" (quoted (get-element-name element))
                             "because it is disabled")))
        (when (seq files)
-         (invoke {:cdt  (get-element-cdt element)
-                  :cmd  "DOM.setFileInputFiles"
-                  :args {:nodeId (get-node-id element)
-                         :files  (mapv #(.getAbsolutePath ^File %) files)}}))
+         (try
+           (invoke {:cdt  (get-element-cdt element)
+                    :cmd  "DOM.setFileInputFiles"
+                    :args {:objectId (get-object-id element)
+                           :files    (mapv #(.getAbsolutePath ^File %) files)}})
+           (catch DevtoolsProtocolException ex
+             (when (and (= -32000 (ex-code ex))
+                        (= "Cannot find context with specified id" (ex-message ex)))
+               (throw (cuic-ex "File input got removed during the action")))
+             (throw ex))))
        element))))
 
 ;;; misc

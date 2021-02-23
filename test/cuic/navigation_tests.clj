@@ -28,7 +28,6 @@
   (testing "go-back returns boolean whether going back was possible or not"
     (is* (= "Forms test" (title)))
     (is (true? (c/go-back)))
-    (is* (= "" (title)))
     (is (false? (c/go-back))))
   (testing "go-forward returns boolean whether going forward was possible or not"
     (is (true? (c/go-forward)))

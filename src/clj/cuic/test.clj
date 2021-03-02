@@ -102,7 +102,7 @@
                         (string/replace #"\s+" "-")
                         (string/replace #"[^a-z\-_0-9$]" ""))
                i 0]
-          (let [n (str base (when (pos? i) "-" i) "." (name (:format *screenshot-options*)))
+          (let [n (str base (when (pos? i) (str "-" i)) "." (name (:format *screenshot-options*)))
                 f (io/file dir n)]
             (if-not (.exists f)
               (do (io/copy data f)

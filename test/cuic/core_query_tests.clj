@@ -77,6 +77,15 @@
       (is (nil? (c/query {:by "#hello" :in ctx-2})))
       (is (nil? (c/in ctx-2 (c/query "#hello")))))))
 
+(deftest* startup-tests
+  (testing "query works right after browser has started"
+    ;; Secondary chrome has not loaded any page yet and should have
+    ;; the "front page" visible. Just make sure that __CUIC__ helper
+    ;; functions are loaded even for this front page. c/query should
+    ;; throw an exception if there is something wrong in the init
+    (binding [c/*browser* *secondary-chrome*]
+      (is (seq (c/query "body"))))))
+
 (deftest* document-tests
   (c/goto todos-url {:browser *secondary-chrome*})
   (testing "default browser is used by default"

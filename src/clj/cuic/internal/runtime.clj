@@ -123,7 +123,11 @@
 (defn initialize [cdt]
   (invoke {:cdt  cdt
            :cmd  "Page.addScriptToEvaluateOnNewDocument"
-           :args {:source @runtime-js-src}}))
+           :args {:source @runtime-js-src}})
+  (invoke {:cdt  cdt
+           :cmd  "Runtime.evaluate"
+           :args {:expression    @runtime-js-src
+                  :returnByValue true}}))
 
 (defn js-object? [x]
   (instance? JSObject x))

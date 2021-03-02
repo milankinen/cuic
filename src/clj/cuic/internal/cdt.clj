@@ -3,7 +3,7 @@
             [clojure.tools.logging :refer [debug error]]
             [gniazdo.core :as ws])
   (:import (java.lang AutoCloseable)
-           (java.util.concurrent CountDownLatch TimeUnit)
+           (java.util.concurrent CountDownLatch TimeUnit LinkedBlockingDeque)
            (java.net SocketTimeoutException)
            (clojure.lang IDeref IFn Var)
            (org.eclipse.jetty.websocket.client WebSocketClient)
@@ -11,22 +11,38 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- handle-message [reqs listeners msg-s]
+(defn- handle-message [reqs ^LinkedBlockingDeque events-q msg-s]
   (try
-    (let [msg (json/read-str msg-s :key-fn keyword)]
+    (when-let [msg (json/read-str msg-s :key-fn keyword)]
       (if-let [id (:id msg)]
         ;; Response to request
         (do (some-> (get @reqs id) (deliver msg))
             (swap! reqs dissoc id))
-        ;; Event
-        (let [{:keys [method params]} msg]
-          (doseq [li (get @listeners method)]
-            (try
-              (li method params)
-              (catch Exception ex
-                (error ex "Error occurred while handling event, method =" method)))))))
+        ;; Event, will be processed in a separate thread
+        (.putLast events-q msg)))
     (catch Throwable ex
       (error ex "Chrome Devtools WebSocket message receive error occurred"))))
+
+(defn- handle-event [listeners {:keys [method params]}]
+  (doseq [li (get @listeners method)]
+    (try
+      (li method params)
+      (catch InterruptedException ex
+        (throw ex))
+      (catch Exception ex
+        (error ex "Error occurred while handling event, method =" method)))))
+
+(defn- handle-events [^LinkedBlockingDeque events-q listeners]
+  (try
+    (loop []
+      (when-not (Thread/interrupted)
+        (when-let [event (.takeFirst events-q)]
+          (handle-event listeners event)
+          (recur))))
+    (catch InterruptedException _)
+    (catch Throwable ex
+      (error ex "Unexpected error occurred in event handler loop")))
+  (.clear events-q))
 
 (defn- handle-close [promises code reason]
   (debug "Chrome Devtools WebSocket connetion closed, code =" code "reason =" reason)
@@ -37,12 +53,19 @@
 (defn- handle-error [^Throwable ex]
   (error ex "Chrome Devtools WebSocket connection error occurred"))
 
-(defrecord ChromeDeveloperTools [socket requests listeners promises next-id]
+(defrecord ChromeDeveloperTools [socket event-handler requests listeners promises events-q next-id]
   AutoCloseable
   (close [_]
     (ws/close socket)
     (reset! listeners {})
-    (reset! requests {})))
+    (reset! requests {})
+    (when (.isAlive ^Thread event-handler)
+      ;; signal closing with false, then interrupt and wait until
+      ;; handler thread gets stopped
+      (.putFirst ^LinkedBlockingDeque events-q false)
+      (doto ^Thread event-handler
+        (.interrupt)
+        (.join 1000)))))
 
 (defn cdt? [x]
   (instance? ChromeDeveloperTools x))
@@ -55,9 +78,13 @@
           listeners (atom {})
           promises (atom #{})
           next-id (atom 0)
-          on-receive (partial handle-message reqs listeners)
+          events-q (LinkedBlockingDeque.)
+          event-handler (doto (Thread. (reify Runnable (run [_] (handle-events events-q listeners))))
+                          (.setName "cuic-event-handler")
+                          (.start))
+          on-receive #(handle-message reqs events-q %)
           on-error handle-error
-          on-close (partial handle-close promises)
+          on-close #(handle-close promises %1 %2)
           client (let [c ^WebSocketClient (ws/client)]
                    (doto (.getPolicy c)
                      (.setIdleTimeout 0)
@@ -71,7 +98,7 @@
                    :on-receive on-receive
                    :on-error on-error
                    :on-close on-close)]
-      (->ChromeDeveloperTools socket reqs listeners promises next-id))
+      (->ChromeDeveloperTools socket event-handler reqs listeners promises events-q next-id))
     (catch SocketTimeoutException ex
       (throw (CuicException. "Chrome Devtools Websocket connection timeout" ex)))))
 

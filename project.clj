@@ -6,7 +6,11 @@
   :license {:name "MIT"
             :url  "https://opensource.org/licenses/MIT"}
   :signing {:gpg-key "9DD8C3E9"}
-  :clean-targets ^{:protect false} [:target-path "src/js/node_modules" "src/js/build"]
+  :clean-targets
+  ^{:protect false}
+  [:target-path
+   "src/js/node_modules"
+   "src/js/build"]
   :auto-clean false
   :pedantic? :abort
   :dependencies
@@ -19,15 +23,15 @@
   :resource-paths ["resources" "src/js/build"]
   :profiles {:dev  {:dependencies
                     [[org.clojure/clojure "1.10.2"]
-                     [http-kit "2.5.1"]
+                     [http-kit "2.5.3"]
                      [compojure "1.6.2"]
                      [ch.qos.logback/logback-classic "1.2.3"]
                      [eftest "0.5.9"]
-                     [clj-kondo "2021.01.20"]]
+                     [clj-kondo "2021.02.28"]]
                     :repl-options
                     {:init-ns repl}
                     :plugins
-                    [[lein-ancient "0.6.15"]
+                    [[lein-ancient "0.7.0"]
                      [lein-shell "0.5.0"]]}
              :repl {:jvm-opts ["-Dcuic.headless=false"
                                "-Dcuic.exceptions.full_stacktrace=true"]}}

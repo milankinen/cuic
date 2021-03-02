@@ -32,7 +32,7 @@
     (when (= (get-page-loader-id page) loader-id)
       (dispose page remote-object))))
 
-(defrecord JSObjectHandle [page remote-object __ref__])
+(defrecord JSObject [page remote-object __ref__])
 
 (defmulti js-object->tagged-literal (fn [js-obj] (get-in js-obj [:remote-object :subtype])))
 
@@ -47,9 +47,9 @@
          (:objectId remote-object)]}
   (let [loader-id (get-page-loader-id page)
         ref (RemoteObjectRef. page loader-id remote-object)]
-    (->JSObjectHandle page remote-object ref)))
+    (->JSObject page remote-object ref)))
 
-(defmethod print-method JSObjectHandle [handle writer]
+(defmethod print-method JSObject [handle writer]
   (.write ^Writer writer ^String (js-object->tagged-literal handle)))
 
 (defn- validate-arg-value [val]
@@ -126,10 +126,10 @@
            :args {:source @runtime-js-src}}))
 
 (defn js-object? [x]
-  (instance? JSObjectHandle x))
+  (instance? JSObject x))
 
-(defn get-object-id [handle]
-  (get-in handle [:remote-object :objectId]))
+(defn get-object-id [obj]
+  (get-in obj [:remote-object :objectId]))
 
 (defn get-object-page [obj]
   {:pre [(js-object? obj)]}

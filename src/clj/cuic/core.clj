@@ -1243,31 +1243,43 @@
          (type-text cdt text chars-per-min)
          element)))))
 
-(defn choose
-  "Chooses the given options (strings) from the given element. element must
-   be a html select element or otherwise an exception will be thrown.
-   If element is not in the view, scrolls it into the view first. Waits
-   [[cuic.core/*timeout*]] until the element becomes fillable (visible
+(defn select
+  "Selects the given option or options (strings) from the given element.
+   Element must be a html select element or otherwise an exception will
+   be thrown. If element is not in the view, scrolls it into the view first.
+   Waits [[cuic.core/*timeout*]] until the element becomes fillable (visible
    and not disabled) or throws an exception if the timeout exceeds.
 
-   Returns the target element for threading."
-  [element & options]
+   In case of single option, provide the selected option as a string. In case
+   of multiple options, provide the selected options as a sequence of strings.
+
+   Returns the target element for threading.
+
+   ```clojure
+   ;; Select single option
+   (c/select my-html-select \"foo\")
+
+   ;; Select multiple options
+   (c/select my-html-multiselect [\"foo\" \"bar\"])
+   ```"
+  [element option-or-options]
   (rewrite-exceptions
-    (check-arg [element? "html element"] [element "updated element"])
-    (check-arg [#(every? string? %) "strings"] [options "selected options"])
-    (stale-as-ex (cuic-ex "Can't choose options from element" (quoted (get-element-name element))
-                          "because it does not exist anymore")
-      (when (not= "SELECT" (-js-prop element "this.tagName"))
-        (throw (cuic-ex (quoted (get-element-name element)) "is not a valid select element")))
-      (when-not (-wait-visible element)
-        (throw (timeout-ex "Can't choose options from element" (quoted (get-element-name element))
-                           "because it is not visible")))
-      (scroll-into-view-if-needed element)
-      (when-not (-wait-enabled element)
-        (throw (timeout-ex "Can't choose options from element" (quoted (get-element-name element))
-                           "because it is disabled")))
-      (call-sync
-        {:code "
+    (let [options (if (coll? option-or-options) option-or-options [option-or-options])]
+      (check-arg [element? "html element"] [element "updated element"])
+      (check-arg [#(every? string? %) "strings"] [options "selected options"])
+      (stale-as-ex (cuic-ex "Can't choose options from element" (quoted (get-element-name element))
+                            "because it does not exist anymore")
+        (when (not= "SELECT" (-js-prop element "this.tagName"))
+          (throw (cuic-ex (quoted (get-element-name element)) "is not a valid select element")))
+        (when-not (-wait-visible element)
+          (throw (timeout-ex "Can't choose options from element" (quoted (get-element-name element))
+                             "because it is not visible")))
+        (scroll-into-view-if-needed element)
+        (when-not (-wait-enabled element)
+          (throw (timeout-ex "Can't choose options from element" (quoted (get-element-name element))
+                             "because it is disabled")))
+        (call-sync
+          {:code "
            for (let o of this.options) {
              console.log(o)
              if ((o.selected = vals.includes(o.value)) && !this.multiple) {
@@ -1277,9 +1289,9 @@
            this.dispatchEvent(new Event('input', {bubbles: true}));
            this.dispatchEvent(new Event('change', {bubbles: true}));
            "
-         :args {:vals options}
-         :this element})
-      nil)))
+           :args {:vals (vec options)}
+           :this element})
+        nil))))
 
 (defn add-files
   "Add files to the given element. Element must be a valid html file input

@@ -17,11 +17,11 @@
     (testing "choosing select values"
       (is* (has-text? "Selection: Foo"))
       (-> (c/find "#select")
-          (c/choose "t"))
+          (c/select "t"))
       (is* (has-text? "Selection: Tsers"))
       (is* (has-text? "Multiselection: -"))
       (-> (c/find "#multiselect")
-          (c/choose "f" "b"))
+          (c/select ["f" "b"]))
       (is* (has-text? "Multiselection: Foo, Bar")))
     (testing "typing text and filling inputs"
       (is* (has-text? "Input value is: lolbal"))

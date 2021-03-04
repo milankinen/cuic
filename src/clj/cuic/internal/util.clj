@@ -60,11 +60,6 @@
        (.setStackTrace ce# (into-array (next (seq (.getStackTrace (Exception.))))))
        (throw ce#))))
 
-(defmacro stale-as-nil [& body]
-  `(try
-     ~@body
-     (catch StaleObjectException ex#)))
-
 (defmacro stale-as-ex [ex & body]
   `(try
      ~@body

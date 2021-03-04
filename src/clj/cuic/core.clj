@@ -28,7 +28,6 @@
                                          press-key]]
             [cuic.internal.html :refer [parse-document parse-element boolean-attributes]]
             [cuic.internal.util :refer [rewrite-exceptions
-                                        stale-as-nil
                                         stale-as-ex
                                         cuic-ex
                                         timeout-ex

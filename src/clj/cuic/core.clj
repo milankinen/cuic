@@ -356,6 +356,7 @@
    (find {:by      <selector>  ; mandatory - CSS selector for the query
           :in      <scope>     ; optional - root scope for query, defaults to document see cuic.core/in
           :as      <name>      ; optional - name of the result element, see cuic.core/as
+          :when    <predicate> ; optional - predicate function for extra conditions that the queried element must satisfy
           :timeout <ms>        ; optional - wait timeout in ms, defaults to cuic.core/*timeout*
           })
 
@@ -363,6 +364,10 @@
 
    (c/find {:by \".navi input.search\"
             :as \"Quick search input\"})
+
+   (c/find {:by   \"button\"
+            :when #(re-find #\"Save\" (c/text-content %))
+            :as   \"Save button\"})
 
    (c/find {:in      (find \"#sidebar\")
             :by      \".logo\"
@@ -375,29 +380,34 @@
       (if (map? selector)
         (let [{:keys [in by as timeout]
                :or   {timeout *timeout*}} selector
+              pred (get selector :when identity)
               ctx (or in *query-scope* (document))
               _ (check-arg [element? "html element"] [ctx "context"])
               _ (check-arg [string? "string"] [by "selector"])
+              _ (check-arg [ifn? "function"] [pred "predicate"])
               _ (check-arg [#(or (string? %) (nil? %)) "string"] [as "alias"])
               _ (check-arg [nat-int? "positive integer or zero"] [timeout "timeout"])
               start-t (System/currentTimeMillis)]
           (loop []
-            (let [nodes (call-sync {:code "return Array.from(this.querySelectorAll(s))"
-                                    :this ctx
-                                    :args {:s by}})
+            (let [nodes (->> (call-sync {:code "return Array.from(this.querySelectorAll(s))"
+                                         :this ctx
+                                         :args {:s by}})
+                             (map #(with-element-meta % ctx as by))
+                             (filter pred))
                   elapsed (- (System/currentTimeMillis) start-t)]
               (case (count nodes)
+                1 (first nodes)
                 0 (if (< elapsed timeout)
                     (do (sleep (min 100 (- *timeout* elapsed)))
                         (recur))
                     (throw (timeout-ex "Could not find element" (quoted as) "from"
                                        (quoted (get-element-name ctx)) "with selector"
                                        (quoted by) "in" timeout "milliseconds")))
-                1 (or (stale-as-nil (with-element-meta (first nodes) ctx as by))
-                      (recur))
                 (throw (cuic-ex "Found too many" (str "(" (count nodes) ")") (quoted as)
                                 "html elements from" (quoted (get-element-name ctx))
-                                "with selector" (quoted by)))))))
+                                "with selector" (quoted by)
+                                (when-let [f (:pred selector)]
+                                  (str "after checking conditions " f))))))))
         (recur {:by selector})))))
 
 (defn query
@@ -415,9 +425,10 @@
    In addition to plain css selector, `query` can be invoked with
    more information by using map form:
    ```clojure
-   (query {:by <selector>  ; mandatory - CSS selector for the query
-           :in <scope>     ; optional - root scope for query, defaults to document see cuic.core/in
-           :as <name>      ; optional - name for the result elements
+   (query {:by   <selector>  ; mandatory - CSS selector for the query
+           :in   <scope>     ; optional - root scope for query, defaults to document see cuic.core/in
+           :when <predicate> ; optional - predicate function for extra conditions that the queried elements must satisfy
+           :as   <name>      ; optional - name for the result elements
            })
 
    ;; examples
@@ -446,13 +457,16 @@
       (if (map? selector)
         (let [{:keys [in by as]} selector
               ctx (or in *query-scope* (document))
+              pred (get selector :when identity)
               _ (check-arg [element? "html element"] [ctx "context"])
               _ (check-arg [string? "string"] [by "selector"])
+              _ (check-arg [ifn? "function"] [pred "predicate"])
               _ (check-arg [#(or (string? %) (nil? %)) "string"] [as "alias"])]
           (->> (call-sync {:code "return Array.from(this.querySelectorAll(s))"
                            :this ctx
                            :args {:s by}})
-               (mapv #(with-element-meta % ctx as by))
+               (map #(with-element-meta % ctx as by))
+               (filterv pred)
                (not-empty)))
         (recur {:by selector})))))
 

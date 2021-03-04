@@ -33,7 +33,15 @@
             CuicException
             #"Could not find element \"MyNode\" from \"#document\" with selector \".non-existing\" in 1000 milliseconds"
             (c/find {:by ".non-existing"
-                     :as "MyNode"})))))
+                     :as "MyNode"}))))
+    (testing "too many nodes"
+      (is (thrown-with-msg?
+            CuicException
+            #"Found too many \(2\) html elements from .+"
+            (c/find "#list li"))))
+    (testing "filtering queried nodes with predicate"
+      (is (some? (c/find {:by   "#list li"
+                          :when #(= "bal" (c/text-content %))})))))
   (binding [c/*timeout* 100]
     (testing "finding under context node"
       (let [ctx-1 (c/find "#context-1")
@@ -75,7 +83,11 @@
       (is (vector? (c/query {:by "#hello" :in ctx-1})))
       (is (vector? (c/in ctx-1 (c/query "#hello"))))
       (is (nil? (c/query {:by "#hello" :in ctx-2})))
-      (is (nil? (c/in ctx-2 (c/query "#hello")))))))
+      (is (nil? (c/in ctx-2 (c/query "#hello"))))))
+  (testing "filtering resuts with predicate"
+    (is (= 2 (count (c/query "#list li"))))
+    (is (= 1 (count (c/query {:by "#list li" :when #(= "bal" (c/text-content %))}))))
+    (is (nil? (c/query {:by "#list li" :when (constantly false)})))))
 
 (deftest* startup-tests
   (testing "query works right after browser has started"

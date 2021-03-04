@@ -14,4 +14,20 @@
       (is (thrown-with-msg?
             TimeoutException
             #"Timeout exceeded while waiting for truthy value from expression: \(= 1 2\)"
-            (c/wait (= 1 2)))))))
+            (c/wait (= 1 2))))))
+  (testing "timeout can be passed as option"
+    (binding [c/*timeout* 1000000]
+      (is (thrown-with-msg?
+            TimeoutException
+            #"Timeout exceeded while waiting for truthy value from expression: \(= 1 2\)"
+            (c/wait (= 1 2) {:timeout 500})))))
+  (testing "error message can be passed as options"
+    (is (thrown-with-msg?
+          TimeoutException
+          #"tsers"
+          (c/wait (= 1 2) {:timeout 500 :message "tsers"})))
+    (is (thrown-with-msg?
+          TimeoutException
+          #"tsers"
+          (c/wait (= 1 2) {:timeout 500 :message #(do "tsers")})))))
+

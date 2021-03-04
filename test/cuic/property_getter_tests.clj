@@ -11,7 +11,6 @@
 
 (deftest* basic-property-getter-tests
   (c/goto todos-url)
-  (c/wait 1000)
   (is (= #{"header" "desktop"} (c/classes (c/find ".header"))))
   (is (= {:autofocus   true
           :class       "new-todo"

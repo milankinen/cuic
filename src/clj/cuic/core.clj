@@ -175,23 +175,59 @@
   "Macro that waits until the given expression returns a
    truthy value or timeouts. Uses [[cuic.core/*timeout*]] by
    default but the timeout value can be overrided by providing
-   it as a second parameter.
+   it as an option.
 
    **Attention:** the waited expression may be invoked
    multiple times so it should **not** mutate anything during
-   the invocation!"
-  ([expr] `(wait ~expr cuic.core/*timeout*))
-  ([expr timeout]
-   `(let [timeout# ~timeout
+   the invocation!
+
+   Supported options are:
+     * `:timeout` - integer value of milliseconds until wait timeouts,
+        use zero to disable timeout entirely
+     * `:message` - custom error message to display in case of timeout.
+        Can be either string or zero-arity function that gets called
+        when the timeout occurs.
+
+   ```clojure
+   ;; Wait using defaults
+   (c/wait (= 2 (get-num-result-rows)))
+
+   ;; Wait using custom 1 sec timeout
+   (c/wait (= 2 (get-num-result-rows)) {:timeout 1000})
+
+   ;; Wait using custom error message
+   (c/wait (= 2 (get-num-result-rows)) {:message \"Result rows not matching\"})
+
+   ;; Wait using dynamic custom error message
+   (c/wait (= 2 (get-num-result-rows)) {:message #(format \"Expected 2 rows but got %d\" (get-num-result-rows))})
+   ```
+   "
+  ([expr] `(wait ~expr {}))
+  ([expr opts]
+   `(let [opts# (let [o# ~opts]
+                  (assert (map? o#) "Options must be a map")
+                  o#)
+          timeout# (or (:timeout opts#) *timeout*)
+          msg# (:message opts#)
           start-t# (System/currentTimeMillis)]
-      (check-arg [nat-int? "positive integer or zero"] [timeout# "timeout"])
+      (assert (nat-int? timeout#) "Timeout must be a positive integer or zero")
+      (assert (or (nil? msg#)
+                  (string? msg#)
+                  (ifn? msg#))
+              "Custom error message must be string or function producing a string")
       (loop []
         (let [val# ~expr]
           (or val#
               (if (>= (- (System/currentTimeMillis) start-t#) timeout#)
-                (throw (TimeoutException. (str "Timeout exceeded while waiting for truthy "
-                                               "value from expression: " ~(pr-str expr))
-                                          val#))
+                (cond
+                  (string? msg#)
+                  (throw (TimeoutException. msg# val#))
+                  (ifn? msg#)
+                  (throw (TimeoutException. (str (apply msg# [])) val#))
+                  :else
+                  (throw (TimeoutException. (str "Timeout exceeded while waiting for truthy "
+                                                 "value from expression: " ~(pr-str expr))
+                                            val#)))
                 (recur))))))))
 
 (defn timeout-ex?

@@ -40,7 +40,7 @@
           (c/fill "aaaa" {:speed :tycitys}))
       (is* (has-text? "Input value is: aaaa"))
       (-> (c/find "#input")
-          (c/select-text))
+          (c/select-all-text))
       (c/type "b")
       (is* (has-text? "Input value is: b")))
     (testing "checking checkboxes and radio buttons"

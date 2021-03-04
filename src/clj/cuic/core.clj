@@ -1143,7 +1143,7 @@
                   :this element})
       element)))
 
-(defn select-text
+(defn select-all-text
   "First scrolls the given element into view (if needed) and then selects
    all text from the element. element must be an input/textarea element or
    otherwise an exception is thrown. Waits [[cuic.core/*timeout*]] until

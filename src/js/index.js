@@ -31,6 +31,22 @@ window.__CUIC__ = {
       rect.right <= (window.innerWidth || document.documentElement.clientWidth)
     );
   },
+  wrapArgs: (args) => {
+    console.log("WRAP", args)
+    // args = [template, paths, ...objects]
+    // it's ok to mutate because we don't need to use the template anywhere else
+    const template = args[0]
+    const paths = args[1]
+    for (let objIdx = 0; objIdx < paths.length; objIdx++) {
+      const path = paths[objIdx]
+      let cur = template
+      for(let i = 0; i < (path.length - 1); i++) {
+        cur = cur[path[i]]
+      }
+      cur[path[path.length - 1]] = args[objIdx + 2]
+    }
+    return template
+  },
   wrapResult: x => {
     const refs = [];
     const result = {};

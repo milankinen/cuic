@@ -11,6 +11,8 @@
 
 (set! *warn-on-reflection* true)
 
+(declare js-object?)
+
 (def ^:private runtime-js-src
   (delay (slurp (io/resource "cuic_runtime.js"))))
 
@@ -52,36 +54,44 @@
 (defmethod print-method JSObject [handle writer]
   (.write ^Writer writer ^String (js-object->tagged-literal handle)))
 
-(defn- validate-arg-value [val]
+(defn- coerce-arg-value! [obj-refs path val]
   (cond
     (or (string? val)
         (number? val)
         (boolean? val)
-        (nil? val)) :ok
+        (nil? val)) val
+    (js-object? val)
+    (do (vswap! obj-refs conj [path val])
+        nil)
     (map? val)
-    (doseq [[k v] val]
-      (when-not (or (keyword? k)
-                    (string? k)
-                    (symbol? k))
-        (throw (cuic-ex "Object keys must be either keywords, strings or symbols"
-                        "but got" (safe-str k))))
-      (validate-arg-value v))
+    (->> (for [[k v] val]
+           (if-not (or (keyword? k)
+                       (string? k)
+                       (symbol? k))
+             (throw (cuic-ex "Object keys must be either keywords, strings or symbols"
+                             "but got" (safe-str k)))
+             [k (coerce-arg-value! obj-refs (conj path k) v)]))
+         (into {}))
     (coll? val)
-    (doseq [v val]
-      (validate-arg-value v))
+    (->> (map-indexed vector val)
+         (mapv (fn [[i v]] (coerce-arg-value! obj-refs (conj path i) v))))
     :else
-    (throw (cuic-ex "Only JSON primitive values, maps and collections accepted"
-                    "as call argument values but got" (safe-str val)))))
+    (throw (cuic-ex "Only JSON primitive values, JS object references, maps and collections"
+                    "are accepted as call argument values but got" (safe-str val)))))
 
 (defn- validate-arg-key [key]
   (when-not (simple-keyword? key)
     (throw (cuic-ex "Call arguments keys must be simple keywords "
                     "but got" (safe-str key)))))
 
-(defn- validate-args [args]
-  (doseq [[k v] args]
-    (validate-arg-key k)
-    (validate-arg-value v)))
+(defn- coerce-args [args]
+  (doseq [k (keys args)]
+    (validate-arg-key k))
+  (let [obj-refs (volatile! [])
+        coerced (coerce-arg-value! obj-refs [] args)
+        paths (mapv first @obj-refs)
+        handles (mapv second @obj-refs)]
+    [coerced paths handles]))
 
 (defn- unwrap [page {:keys [result exceptionDetails]}]
   (if exceptionDetails
@@ -156,24 +166,37 @@
                        :returnByValue false}})
        (unwrap page)))
 
-(defn call-sync
-  [{:keys [code
-           this
-           args]
-    :or   {args {}}}]
+(defn- call* [{:keys [code
+                      this
+                      args]
+               :or   {args {}}}
+              {:keys [async?]}]
   {:pre [(string? code)
          (js-object? this)
-         (map? args)]}
+         (map? args)
+         (boolean? async?)]}
   (try
-    (validate-args args)
-    (let [sorted-args (sort-by first args)
-          args-s (string/join ", " (map (comp name first) sorted-args))
-          page (:page this)]
+    (let [[coerced-args obj-paths obj-handles] (coerce-args args)
+          page (:page this)
+          tmpl (if (seq obj-paths)
+                 (if async?
+                   "async function() { let %s = __CUIC__.wrapArgs([...arguments]); return __CUIC__.wrapResult(await (async function() { %s }).call(this)) }"
+                   "function(%s) { let %s = __CUIC__.wrapArgs([...arguments]); return __CUIC__.wrapResult((function() { %s }).call(this)) }")
+                 ;; optimize primitive-only path
+                 (if async?
+                   "async function(%s) { return __CUIC__.wrapResult(await (async function() { %s }).call(this)) }"
+                   "function(%s) { return __CUIC__.wrapResult((function() { %s }).call(this)) }"))
+          arg-decomp (str "{" (string/join "," (map (comp name first) args)) "}")
+          js-args (if (seq obj-paths)
+                    (->> (map #(do {:objectId (get-object-id %)}) obj-handles)
+                         (cons {:value obj-paths})
+                         (cons {:value coerced-args}))
+                    [{:value coerced-args}])]
       (->> (invoke {:cdt  (get-page-cdt page)
                     :cmd  "Runtime.callFunctionOn"
-                    :args {:functionDeclaration (format "function(%s) { return __CUIC__.wrapResult((function() { %s }).call(this)) }" args-s code)
-                           :awaitPromise        false
-                           :arguments           (mapv #(do {:value (second %)}) sorted-args)
+                    :args {:functionDeclaration (format tmpl arg-decomp code)
+                           :awaitPromise        async?
+                           :arguments           js-args
                            :returnByValue       false
                            :objectId            (get-object-id this)}})
            (unwrap page)))
@@ -183,32 +206,11 @@
         (throw (StaleObjectException.)))
       (throw ex))))
 
-(defn call-async
-  [{:keys [code
-           this
-           args]
-    :or   {args {}}}]
-  {:pre [(string? code)
-         (js-object? this)
-         (map? args)]}
-  (try
-    (validate-args args)
-    (let [sorted-args (sort-by first args)
-          args-s (string/join ", " (map (comp name first) sorted-args))
-          page (:page this)]
-      (->> (invoke {:cdt  (get-page-cdt page)
-                    :cmd  "Runtime.callFunctionOn"
-                    :args {:functionDeclaration (format "async function(%s) { return __CUIC__.wrapResult(await (async function() { %s }).call(this)) }" args-s code)
-                           :awaitPromise        true
-                           :arguments           (mapv #(do {:value (second %)}) sorted-args)
-                           :returnByValue       false
-                           :objectId            (get-object-id this)}})
-           (unwrap page)))
-    (catch DevtoolsProtocolException ex
-      (when (and (= -32000 (ex-code ex))
-                 (= "Cannot find context with specified id" (ex-message ex)))
-        (throw (StaleObjectException.)))
-      (throw ex))))
+(defn call-sync [opts]
+  (call* opts {:async? false}))
+
+(defn call-async [opts]
+  (call* opts {:async? true}))
 
 (defn get-window [page]
   (eval-sync {:page page :code "return window"}))

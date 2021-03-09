@@ -24,7 +24,7 @@
   (testing "arguments must be primitive values or objects/arrays"
     (is (thrown-with-msg?
           CuicException
-          #"Only JSON primitive values, maps and collections accepted as call argument values but got.+"
+          #"Only JSON primitive values, JS object references, maps and collections are accepted as call argument values but got.+"
           (c/eval-js "123" {:msg (atom 1)}))))
   (testing "code must be syntactically valid js expression"
     (is (thrown-with-msg?
@@ -54,7 +54,7 @@
   (testing "arguments must be primitive values or objects/arrays"
     (is (thrown-with-msg?
           CuicException
-          #"Only JSON primitive values, maps and collections accepted as call argument values but got.+"
+          #"Only JSON primitive values, JS object references, maps and collections are accepted as call argument values but got.+"
           (c/exec-js "123" {:msg (atom 1)}))))
   (testing "code must be syntactically valid js code block"
     (is (thrown-with-msg?

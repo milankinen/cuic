@@ -58,9 +58,10 @@
     speed))
 
 (def ^:dynamic *browser*
-  "Default browser that will be used for core queries such as
+  "Default browser that will be used for the core queries such as
    [[cuic.core/find]], [[cuic.core/document]] or [[cuic.core/window]]
-   if not explicitly defined during the query invocation time.
+   if the browser is not explicitly defined during the query
+   invocation time.
 
    Use `binding` to assign default for e.g. single test run:
 
@@ -86,8 +87,8 @@
   5000)
 
 (def ^:dynamic *base-url*
-  "Base url that will be prepended to [[cuic.core/goto]] url if the value does
-   not contain hostname.
+  "Base url that will be prepended to [[cuic.core/goto]] url if the
+   url does not contain hostname.
 
    Use `binding` to assign default for e.g. single test run:
 
@@ -118,13 +119,13 @@
   :normal)
 
 (def ^:dynamic *query-scope*
-  "HTML element that acts as a root scope for [[cuic.core/find]] and
-   [[cuic.core/query]] queries, unless othewise specified at query
+  "HTML element that acts as an implicit root scope for [[cuic.core/find]]
+   and [[cuic.core/query]] invocations, unless explicitly specified at query
    invocation time. Setting this value to `nil` indicates that
    queries should use document scope by default.
 
    Do not bind this variable directly, instead use [[cuic.core/in]]
-   to define query scope in your application code."
+   to define the query scope in your application code."
   nil)
 
 (defn set-browser!
@@ -165,20 +166,20 @@
 
 (defn sleep
   "Stops the current thread execution for the given
-   n milliseconds."
+   `n` milliseconds."
   [ms]
   {:pre [(nat-int? ms)]}
   (Thread/sleep ms))
 
 (defmacro wait
-  "Macro that waits until the given expression returns a
-   truthy value or timeouts. Uses [[cuic.core/*timeout*]] by
+  "Macro that waits until the given expression yields a truthy value.
+   If the expression does not yield a thruthy value within a certain
+   time, throws a timeout exception. Uses [[cuic.core/*timeout*]] by
    default but the timeout value can be overrided by providing
    it as an option.
 
-   **Attention:** the waited expression may be invoked
-   multiple times so it should **not** mutate anything during
-   the invocation!
+   **Attention:** the waited expression may be invoked multiple times
+   so it should **not** contain any side effects!
 
    Supported options are:
      * `:timeout` - integer value of milliseconds until wait timeouts,
@@ -237,10 +238,9 @@
   (instance? TimeoutException ex))
 
 (defmacro in
-  "Macro that runs its body using the given element as \"root scope\"
+  "Macro that runs its body using the given element as the \"root scope\"
    for queries: all matching elements must be found under the element.
-   Scope must be a valid HTML element or otherwise an exception will
-   be thrown.
+   Scope must be a valid HTML element or otherwise an exception is thrown.
 
    ```clojure
    ;; the following codes are equivalent
@@ -261,9 +261,9 @@
          ~@body))))
 
 (defn as
-  "Assigns a new custom name for the give element. The assigned name
+  "Assigns a new custom name for the given element. The assigned name
    will be displayed in REPL and in error messages but it does
-   not have any effect on other behaviour.
+   not have any effect on the JavaScript page element.
 
    ```clojure
    (-> (c/find \"#sidebar\")
@@ -272,9 +272,9 @@
 
    Note that usually one should prefer `(find {:as <name> :by <sel>})`
    for assigning names instead of `(-> (find <sel>) (as <name>)` because
-   then the name will be displayed in error message if `find` fails
-   for some reason. See [[cuic.core/find]] and [[cuic.core/query]] for
-   more details."
+   then the name will be displayed also in the error message if `find`
+   fails for some reason. See [[cuic.core/find]] and [[cuic.core/query]]
+   for more details about name assignment at the query time."
   [element name]
   (rewrite-exceptions
     (check-arg [string? "string"] [name "element name"])
@@ -282,7 +282,7 @@
     (assoc-custom-name element name)))
 
 (defn name
-  "Returns the custom name of the given element or `nil` if debug name is
+  "Returns the custom name of the given element or `nil` if the name is
    not set for the element."
   [element]
   (rewrite-exceptions
@@ -297,10 +297,9 @@
   (or *browser* (throw (cuic-ex "Default browser not set"))))
 
 (defn window
-  "Returns a window object for the current default browser.
-   Note that window can only be used as `this` in [[cuic.core/eval-js]]
-   and [[cuic.core/exec-js]] but not as query scope. For query
-   scopes, use [[cuic.core/document]] instead.
+  "Returns the JavaScript `window` object for the current default
+   browser. Note that window can't be used as the query scope. For
+   query scopes, use [[cuic.core/document]] instead.
 
    Default browser can be overriden by providing browser
    explicitly as a parameter."
@@ -311,7 +310,7 @@
      (get-window (get-current-page browser)))))
 
 (defn document
-  "Returns a document object (HTML element) for the current default
+  "Returns the JavaScript `document` object for the current default
    browser. Default browser can be overriden by providing browser
    explicitly as a parameter."
   ([] (rewrite-exceptions (document (-require-default-browser))))
@@ -322,10 +321,10 @@
                  :code "return document"}))))
 
 (defn active-element
-  "Returns active element (HTML element) for the current default
-   browser or `nil` if there are no active elements in the
-   page at the moment. Default browser can be overriden by
-   providing browser explicitly as a parameter."
+  "Returns the active element (HTML element) for the current default
+   browser or `nil` if there are no active element in the page at the
+   moment. Default browser can be overriden by providing browser explicitly
+   as a parameter."
   ([] (rewrite-exceptions (active-element (-require-default-browser))))
   ([browser]
    (rewrite-exceptions
@@ -336,13 +335,13 @@
 
 (defn find
   "Tries to find **exactly one** html element by the given css
-   selector and throws an exception element wasn't found **or**
-   there are multiple elements matching the selector.
+   selector and throws an exception if the element wasn't found **or**
+   there are more than one element matching the selector.
 
-   If any element is not found from the DOM, `find` tries to wait
-   for it until the element appears to the DOM or timeout exceeds.
-   By default, the wait timeout is [[cuic.core/*timeout*]] but it
-   can be overriden per invocation.
+   If the desired element is not found immediately, `find` waits until
+   the element appears in the DOM. If the element does not appear within a
+   certain time period, `find` throws an exception. By default, the wait
+   timeout is [[cuic.core/*timeout*]] but it can be overrided per invocation.
 
    Basic usage:
    ```clojure
@@ -350,7 +349,7 @@
    ```
 
    In addition to plain css selector, `find` can be invoked with
-   more information by using map form:
+   more information by using a map form:
    ```clojure
    (find {:by      <selector>  ; mandatory - CSS selector for the query
           :in      <scope>     ; optional - root scope for query, defaults to document see cuic.core/in
@@ -411,10 +410,9 @@
         (recur {:by selector})))))
 
 (defn query
-  "Works like [[cuic.core/find]] but returns 0..n elements matching
-   the given css selector. In case of no results, `nil` will be
-   returned, otherwise the return value is a vector of matching
-   HTML elements.
+  "Works like [[cuic.core/find]] but returns `0..n` elements matching
+   the given css selector. In case of no results, `nil` will be returned.
+   Otherwise the return value is a vector of matching HTML elements.
 
    Basic usage:
    ```clojure
@@ -423,7 +421,7 @@
    ```
 
    In addition to plain css selector, `query` can be invoked with
-   more information by using map form:
+   more information by using a map form:
    ```clojure
    (query {:by   <selector>  ; mandatory - CSS selector for the query
            :in   <scope>     ; optional - root scope for query, defaults to document see cuic.core/in
@@ -443,9 +441,9 @@
 
    Note that unlike [[cuic.core/find]], [[cuic.core/query]] **does not
    wait** for the results: if there are zero elements matching the given
-   selector at the query time, the result set will be `nil`. If some
-   results are expected, use [[cuic.core/query]] in conjunction with
-   [[cuic.core/wait]] e.g.
+   selector at the query time, the result will be `nil`. If results are
+   expected, use [[cuic.core/query]] in conjunction with [[cuic.core/wait]],
+   for example:
 
    ```clojure
    (c/wait (c/query \".navi .item\"))
@@ -475,37 +473,30 @@
 ;;;
 
 (defn eval-js
-  "Evaluates the given JavaScript expression in the given `this` object
-   context and returns the expression's result value. Expression may
-   take arguments from Clojure code.
+  "Evaluates the given JavaScript expression with the given `this` binding
+   and returns the expression's result value. The evaluated expression may
+   be parametrized with arguments from the Clojure code.
 
    By default `this` refers to the [[cuic.core/window]] of the current
-   default browser but it may be rebound to any html element or window
-   object.
+   default browser but it may be rebound to any JavaScript object
+   reference (obtained from prior invocations or queries).
 
-   Arguments serializable JSON values:
-    * `nil` (will be converted to `null`
-    * booleans
-    * numbers
-    * maps (will be converted to objects)
-    * collections (will be converted to arrays)
-
-   Likewise the return value of the expression is limited to JSON
-   values:
-    * `null`, `undefined` (will be converted to `nil`)
-    * booleans
-    * numbers
-    * object (will be converted to maps)
-    * arrays (will be converted to vectors)
+   The given input arguments must be either serializable JSON values or
+   JavaScript object references. The return value is serialized back
+   to Clojure data structures and non-serializable JavaScript objects
+   are returned back as *JavaScript object references*. Accessing the
+   properties of those references is only possible by using
+   either [[cuic.core/eval-js]] or [[cuic.core/exec-js]].
 
    ```clojure
-   ;; Return title of the current browser window
+   ;; Return the title of the current browser window
    (c/eval-js \"document.title\")
 
-   ;; Return async value
+   ;; Return an async value
    (c/eval-js \"await new Promise(resolve => setTimeout(() => resolve('tsers'), 500))\")
 
-   ;; Increment list values in JS side
+   ;; Increment the given list values in JS side and return them
+   ;; bac as CLJ vector
    (c/eval-js \"xs.map(x => x + 1)\" {:xs [1 2 3]})
 
    ;; Perform some arithmetics in JS side
@@ -517,7 +508,7 @@
    ```
 
    See also [[cuic.core/exec-js]] if you want to execute statements
-   in JavaScript side."
+   in the JavaScript side."
   ([expr]
    (rewrite-exceptions (eval-js expr {} (window))))
   ([expr args]
@@ -532,47 +523,40 @@
        (call-async {:code (str "return (" expr ");") :this this :args args})))))
 
 (defn exec-js
-  "Executes the given JavaScript function body in the given `this`
-   object context. The executed body may also be parametrized by
-   arguments from Clojure code, and it can return value by using
-   JavaScript's `return` statement in the end. Function body may
-   `await` async values/effects.
+  "Executes the given JavaScript function bodu with the given `this`
+   binding. The executed body may be parametrized with arguments from
+   the Clojure code and it can return a value by using JavaScript's
+   `return` statement at the end of the body. The function body may
+   also `await` async values effects - Clojure invocation will block
+   until the async result is resolved.
 
    By default `this` refers to the [[cuic.core/window]] of the current
-   default browser but it may be rebound to any html element or window
-   object.
+   default browser but it may be rebound to any JavaScript object
+   reference (obtained from prior invocations or queries).
 
-   Arguments serializable JSON values:
-    * `nil` (will be converted to `null`
-    * booleans
-    * numbers
-    * maps (will be converted to objects)
-    * collections (will be converted to arrays)
-
-   Likewise the return value of the expression is limited to JSON
-   values:
-    * `null`, `undefined` (will be converted to `nil`)
-    * booleans
-    * numbers
-    * object (will be converted to maps)
-    * arrays (will be converted to vectors)
+   The given input arguments must be either serializable JSON values or
+   JavaScript object references. The return value is serialized back
+   to Clojure data structures and non-serializable JavaScript objects
+   are returned back as *JavaScript object references*. Accessing the
+   properties of those references is only possible by using
+   either [[cuic.core/eval-js]] or [[cuic.core/exec-js]].
 
    ```clojure
-   ;; Reset document title
+   ;; Reset the document title
    (c/exec-js \"document.title = 'tsers'\")
 
-   ;; Reset input's placeholder value
+   ;; Reset the input placeholder value
    (let [input (c/find \"#my-input\")]
      (c/exec-js \"this.setAttribute('placeholder', text)\" {:text \"tsers\"} input))
 
-   ;; Reset document's title and return the prior value
+   ;; Reset the document title and return the prior value
    (c/exec-js \"const prev = document.title;
                 document.title = 'tsers';
                 return prev;\")
    ```
 
    See also [[cuic.core/eval-js]] if you only want to query data
-   from JavaScript side without performing any side-effects.
+   from the JavaScript side without performing any side-effects.
    "
   ([body]
    (rewrite-exceptions (exec-js body {} (window))))
@@ -637,7 +621,7 @@
       (-js-prop element "!!this.offsetParent"))))
 
 (defn in-viewport?
-  "Returns boolean whether the given element currently visible and
+  "Returns boolean whether the given element is currently visible and
    in the viewport"
   [element]
   (rewrite-exceptions
@@ -730,9 +714,12 @@
       (-js-prop element "this.textContent"))))
 
 (defn outer-html
-  "Returns the outer HTML of the given element as [hiccup](https://github.com/weavejester/hiccup).
-   Comments will be returned using `:-#comment` tag and CDATA nodes
-   will be returned using `:-#data` tag."
+  "Returns the outer HTML of the given element in a [hiccup](https://github.com/weavejester/hiccup).
+   form. Comments use `:-#comment` tag and CDATA nodes will use
+   `:-#data` tag.
+
+   See https://developer.mozilla.org/en-US/docs/Web/API/Element/outerHTML
+   for more details."
   [element]
   (rewrite-exceptions
     (check-arg [element? "html element"] [element "element"])
@@ -747,7 +734,7 @@
 (defn value
   "Returns the current string value of the given input/select/textarea
    element. Throws an exception if the target element is not a valid
-   input element"
+   input element."
   [element]
   (rewrite-exceptions
     (check-arg [element? "html element"] [element "element"])
@@ -759,7 +746,7 @@
 
 (defn options
   "Returns a list of options `{:keys [value text selected]}` for the
-   given element. Throws an exception if element is not a select element."
+   given element. Throws an exception if the element is not a select element."
   [element]
   (rewrite-exceptions
     (check-arg [element? "html element"] [element "element"])
@@ -772,9 +759,8 @@
                       .map(({value, text, selected}) => ({ value, text, selected }))"))))
 
 (defn attributes
-  "Returns element's HTML attributes as a map of keyword keys and
-   string values. Boolean attribute values will be converted to
-   `true` if they are present
+  "Returns element's HTML attributes as a map of `{:attr-name \"attr-value\"}`.
+   Boolean attribute values will be converted to `true` if they are present.
 
    ```clojure
    ;; html element <div id='foo' data-val='1' class='foo bar'></div>
@@ -820,7 +806,7 @@
 
 (defn has-class?
   "Returns boolean whether the given element has the tested
-   css class or not"
+   css class or not."
   [element class]
   (rewrite-exceptions
     (check-arg [element? "html element"] [element "element"])
@@ -842,7 +828,7 @@
         match))))
 
 (defn has-focus?
-  "Returns boolean whether the given element has focus or not"
+  "Returns boolean whether the given element has focus or not."
   [element]
   (rewrite-exceptions
     (check-arg [element? "html element"] [element "element"])
@@ -889,14 +875,14 @@
 
 (defn goto
   "Navigates browser to the given url, equivalent to user typing
-   url to the browser address bar and pressing enter. Url **must**
+   url to the browser's address bar and pressing enter. Url **must**
    contain the protocol. Reloads the page, even if navigating to
-   the current page, and waits until the page is loaded or timeout
+   the current page. Waits until the page is loaded or timeout
    exceeds. Uses [[cuic.core/*timeout*]] by default but it can be
-   overrided by giving the timeout as an option to the invodation.
+   overrided by giving the timeout as an option to the invocation.
 
    If [[cuic.core/*base-url*]] is set, it'll be prepended to the
-   given url if the given url does not contain hostname.
+   given url if the given url does not contain a hostname.
 
    Uses the current browser by default but it can be overrided
    by providing browser as an option to the invocation.
@@ -932,7 +918,7 @@
      nil)))
 
 (defn go-back
-  "Simulates browser back button click. Returns boolean whether the
+  "Simulates browser's back button click. Returns boolean whether the
    back button was pressed or not. Back button pressing is disabled
    if there is no browser history to go back anymore.
 
@@ -956,7 +942,7 @@
        (boolean (navigate-back (get-current-page browser) timeout))))))
 
 (defn go-forward
-  "Simulates browser forward button click. Returns boolean whether the
+  "Simulates browser's forward button click. Returns boolean whether the
    forward button was pressed or not. Forward button pressing is disabled
    if browser is already at the latest navigated page.
 
@@ -982,11 +968,11 @@
 (defn type
   "Simulates keyboard typing. Characters are pressed and released one by one
    using the provided typing speed. Typing speed uses [[cuic.core/*typing-speed*]]
-   by default but it can be overrided by giving it as `:speed` option
+   by default but it can be overrided by giving it as a `:speed` option
    to the invocation.
 
-   Note that this function is pretty low level and it **does not** focus
-   the typed text to any element. See [[cuic.core/fill]] for a more high-level
+   Note that this function is quite low level and it **does not** focus
+   the typed text on any element. See [[cuic.core/fill]] for a more high-level
    alternative.
 
    Uses the current browser by default but it can be overrided
@@ -1014,11 +1000,11 @@
        nil))))
 
 (defn press
-  "Simulates key press of single key. The pressed key must be a symbol
+  "Simulates a key press of single key. The pressed key must be a symbol
    of a valid keycode with optional modifiers separated by '+' (see
-   examples below). You can use e.g. https://keycode.info to get desired
+   examples below). You can use e.g. https://keycode.info to get the desired
    key code (`event.code`) for the pressed key. The complete list of
-   available key codes can be found from
+   the available key codes can be found from
    https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/keyCode
 
    Uses the current browser by default but it can be overrided
@@ -1044,9 +1030,9 @@
        nil))))
 
 (defn scroll-into-view
-  "Scrolls the given element into view if it is not in the view already.
-   Waits [[cuic.core/*timeout*]] until the element becomes visible or
-   throws an exception if timeout exceeds.
+  "Scrolls the given element into the viewport if it is not in the view
+   already. Waits [[cuic.core/*timeout*]] until the element becomes visible
+   or throws an exception if the timeout exceeds.
 
    Returns the target element for threading."
   [element]
@@ -1061,12 +1047,12 @@
       element)))
 
 (defn hover
-  "First scrolls the given element into view (if needed) and then moves the
-   mouse over the element. Waits [[cuic.core/*timeout*]] until the element
-   becomes visible or throws an exception if timeout exceeds.
+  "First scrolls the given element into the viewport (if needed) and then moves
+   the mouse over the element. Waits [[cuic.core/*timeout*]] until the element
+   becomes visible or throws an exception if the timeout exceeds.
 
-   Throws an exception if element is not hoverable: it has either zero
-   width or zero height.
+   Throws an exception if element is not hoverable (it has either zero
+   width or zero height).
 
    Returns the target element for threading."
   [element]
@@ -1089,12 +1075,12 @@
         element))))
 
 (defn click
-  "First scrolls the given element into view (if needed) and then clicks
-   the element once. Waits [[cuic.core/*timeout*]] until the element becomes
-   visible or throws an exception if timeout exceeds.
+  "First scrolls the given element into the viewport (if needed) and then
+   clicks the element once. Waits [[cuic.core/*timeout*]] until the element
+   becomes visible or throws an exception if the timeout exceeds.
 
-   Throws an exception if element is not clickable: it has either zero
-   width or zero height or it is disabled.
+   Throws an exception if element is not clickable (it has either zero
+   width or zero height or it is disabled).
 
    Returns the clicked element for threading.
 
@@ -1125,12 +1111,12 @@
         element))))
 
 (defn double-click
-  "First scrolls the given element into view (if needed) and then double-clicks
-   the element once. Waits [[cuic.core/*timeout*]] until the element becomes
-   visible or throws an exception if timeout exceeds.
+  "First scrolls the given element into the viewport (if needed) and then
+   double-clicks the element twice. Waits [[cuic.core/*timeout*]] until the
+   element becomes visible or throws an exception if the timeout exceeds.
 
-   Throws an exception if element is not clickable: it has either zero
-   width or zero height or it is disabled.
+   Throws an exception if element is not clickable (it has either zero
+   width or zero height or it is disabled).
 
    Returns the clicked element for threading.
 
@@ -1161,9 +1147,9 @@
         element))))
 
 (defn focus
-  "First scrolls the given element into view (if needed) and then focuses
-   on the element. Waits [[cuic.core/*timeout*]] until the element becomes
-   visible or throws an exception if timeout exceeds.
+  "First scrolls the given element into the viewport (if needed) and then
+   focuses on the element. Waits [[cuic.core/*timeout*]] until the element
+   becomes visible or throws an exception if the timeout exceeds.
 
    Returns the focused element for threading."
   [element]
@@ -1183,10 +1169,11 @@
       element)))
 
 (defn select-all-text
-  "First scrolls the given element into view (if needed) and then selects
-   all text from the element. element must be an input/textarea element or
-   otherwise an exception is thrown. Waits [[cuic.core/*timeout*]] until
-   the element becomes visible or throws an exception if timeout exceeds.
+  "First scrolls the given element into the viewport (if needed) and then
+   selects all text from the element. element must be an input/textarea
+   element or otherwise an exception is thrown. Waits [[cuic.core/*timeout*]]
+   until the element becomes visible or throws an exception if the timeout
+   exceeds.
 
    Returns the target element for threading."
   [element]
@@ -1207,10 +1194,10 @@
       element)))
 
 (defn clear-text
-  "First scrolls the given element into view (if needed) and then clears
-   all text from the element. element must be an input/textarea element or
-   otherwise an exception is thrown. Waits [[cuic.core/*timeout*]] until
-   the element becomes visible or throws an exception if timeout exceeds.
+  "First scrolls the given element into the viewport (if needed) and then
+   clears all text from the element. The element must be an input/textarea
+   or otherwise an exception is thrown. Waits [[cuic.core/*timeout*]] until
+   the element becomes visible or throws an exception if the timeout exceeds.
 
    Returns the target element for threading."
   [element]
@@ -1233,15 +1220,15 @@
 
 (defn fill
   "Fills the given text to the given `input` or `textarea` element,
-   clearing any previous text before typing the new text. If element is not
-   in the view, scrolls it into the view first. Waits [[cuic.core/*timeout*]]
+   clearing any previous text before typing the new text. If the element is not
+   in the viewport, scrolls it into the view first. Waits [[cuic.core/*timeout*]]
    until the element becomes fillable (visible and not disabled) or
    throws an exception if the timeout exceeds.
 
    Uses [[cuic.core/*typing-speed*]] by default but it can be overrided
    by giving the speed as a third parameter. See [[cuic.core/*typing-speed*]]
    for valid values. Only text is allowed: if you need to type keycodes,
-   use [[cuic.core/type]] instead. The exceptions are newline character
+   use [[cuic.core/press]] instead. The exceptions are newline character
    `\\n` and tab `\\t` that will be interpreted as their respective key
    presses.
 
@@ -1284,12 +1271,12 @@
 
 (defn select
   "Selects the given option or options (strings) from the given element.
-   Element must be a html select element or otherwise an exception will
-   be thrown. If element is not in the view, scrolls it into the view first.
+   The element must be a html select or otherwise an exception will be
+   thrown. If element is not in the viewport, scrolls it into the view first.
    Waits [[cuic.core/*timeout*]] until the element becomes fillable (visible
    and not disabled) or throws an exception if the timeout exceeds.
 
-   In case of single option, provide the selected option as a string. In case
+   In a case of single option, provide the selected option as a string. In a case
    of multiple options, provide the selected options as a sequence of strings.
 
    Returns the target element for threading.
@@ -1333,19 +1320,19 @@
         nil))))
 
 (defn add-files
-  "Add files to the given element. Element must be a valid html file input
-   element or otherwise an exception is thrown. If element is not in the
-   view, scrolls it into the view first. Waits [[cuic.core/*timeout*]]
+  "Adds files to the given element. The element must be a valid html file
+   input or otherwise an exception is thrown. If the element is not in the
+   viewport, scrolls it into the view first. Waits [[cuic.core/*timeout*]]
    until the element becomes available (visible and not disabled) or throws
    an exception if the timeout exceeds.
 
    The given files must be `java.io.File` instances and all of them
    must exist in the filesystem.
 
-   By default the target input must be visible. However, because it's very
+   By default, the target input must be visible. However, because it's very
    common in modern web applications that file inputs are hidden due to their
    bleak appearance, you can disable the visibility requirement by providing
-   `:allow-hidden? true` option. The input must still be enabled though.
+   an `:allow-hidden? true` option. The input must still be enabled though.
 
    ```clojure
    (require '[clojure.java.io :as io])
@@ -1394,7 +1381,7 @@
 
 (defn screenshot
   "Captures a screenshot from the current page and returns a byte
-   array the the captured image data. Image format and quality can
+   array of the captured image data. Image format and quality can
    be configured by the following options:
 
    ```clojure

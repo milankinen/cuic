@@ -175,7 +175,7 @@
 ;;
 
 (defn chrome?
-  "Checks whether the given value is valid Chrome browser instance or not"
+  "Checks whether the given value is a valid Chrome browser instance or not"
   [val]
   (instance? Chrome val))
 
@@ -406,15 +406,14 @@
 
 (defn devtools
   "Returns handle to the Chrome devtools. To use the returned devtools,
-   see functions from [[cuic.protocol]] namespace."
+   see functions from the [[cuic.protocol]] namespace."
   [chrome]
   {:pre [(chrome? chrome)]}
   (-> (get-current-page chrome)
       (page/get-page-cdt)))
 
 (defn set-cache-disabled
-  "Toggles ignoring cache for each request. If `true`, cache
-   will not be used."
+  "Toggles cache for each request. If `true`, cache will not be used."
   [chrome disabled?]
   {:pre [(chrome? chrome)
          (boolean? disabled?)]}

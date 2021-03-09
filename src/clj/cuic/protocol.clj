@@ -3,8 +3,8 @@
    Protocol. Use [[cuic.chrome/devtools]] to obtain the to the
    browser's devtools client.
 
-  See https://chromedevtools.github.io/devtools-protocol for
-  the complete DevTools Protocol reference."
+   See https://chromedevtools.github.io/devtools-protocol for
+   the complete DevTools Protocol reference."
   (:require [cuic.core :refer [*timeout*]]
             [cuic.internal.cdt :as cdt]
             [cuic.internal.runtime :as runtime]
@@ -13,8 +13,8 @@
 
 (defn invoke
   "Calls Chrome DevTools Protocol method and synchronously waits for the result,
-   returning the received result or throwing an exception if invocation times
-   out or other protocol error occurs.
+   returning the received result or throwing an exception if invocation timeout
+   exceeds or any other protocol error occurs.
 
    Command arguments must be a map containing only JSON serializable
    values. Likewise, the invocation result is deserialized back to Clojure
@@ -49,10 +49,10 @@
 
 (defn on
   "Subscribes to the domain events, invoking the given callback each
-   time when a new event occurs. Returns a subscription that can be
-   canceled with [[cuic.devtools/off]]. Subscription also implements
-   `java.lang.AutoCloseable` so it can be used with Clojure's
-   `with-open` macro.
+   time a new event occurs. Returns a subscription that can be disposed
+   with [[cuic.devtools/off]]. Subscriptions also implement
+   `java.lang.AutoCloseable` so they can be used with Clojure's
+   `with-open` macro. Disposing a subscription is an idempotent action.
 
    ```
    ;; Enable log domain
@@ -101,7 +101,7 @@
 
 (defn object-id
   "Returns [RemoveObjectId](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#type-RemoteObjectId)
-   for the given javascript object handle.
+   for the given JavaScript object reference.
 
    ```clojure
    (let [query-input (c/find \".query\")]

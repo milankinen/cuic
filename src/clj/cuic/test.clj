@@ -74,10 +74,10 @@
 ;;;;
 
 (def ^:dynamic *screenshot-options*
-  "Options that [[cuic.test/deftest*]] will use for screenshots
-   that are taken from failed tests. Accepts all options accepted
-   by [[cuic.core/screenhot]] plus `:dir` (`java.io.File` instance)
-   defining directory, where the taken screenshots will be saved.
+  "Options that [[cuic.test/deftest*]] adn [[cuic.test/is*]] will
+   use for screenshots. Accepts all options accepted by [[cuic.core/screenhot]]
+   plus `:dir` (`java.io.File` instance) defining directory, where the
+   taken screenshots should be saved.
 
    ```clojure
    ;; Store taken screenshots under $PWD/__screenshots__ directory
@@ -122,9 +122,9 @@
   (alter-var-root #'*screenshot-options* (constantly opts)))
 
 (def ^:dynamic *abort-immediately*
-  "Controls the behaviour of immediate test abort in case of
+  "Controls the behaviour of immediate test aborting in case of
    [[cuic.test/is*]] failure. Setting this value to `false`
-   means that test run continues even if `is*` assertion fails
+   means that the test run continues even if `is*` assertion fails
    (reflects the behaviour of the standard `clojure.test/is`).
 
    ```clojure
@@ -138,7 +138,7 @@
   true)
 
 (defn set-abort-immediately!
-  "Globally resets the test abort behaviour. Useful for example REPL
+  "Globally resets the test aborting behaviour. Useful for example REPL
    usage. See [[cuic.test/*abort-immediately*]] for more details."
   [abort?]
   {:pre [(boolean? abort?)]}
@@ -147,9 +147,10 @@
 (defmacro deftest*
   "Cuic's counterpart for `clojure.test/deftest`. Works identically to `deftest`
    but stops gracefully if test gets aborted due to an assertion failure
-   in [[cuic.test/is*]].
+   in [[cuic.test/is*]]. Also captures a screenshot if test throws an
+   unexpected error.
 
-   See namespace documentation for a complete usage example."
+   See namespace documentation for the complete usage example."
   [name & body]
   `(deftest ~name
      (let [test-ns-s# ~(str *ns*)
@@ -167,7 +168,7 @@
 (defmacro is*
   "Basically a shortcut for `(is (c/wait <cond>))` but with some
    improvements to error reporting. See namespace documentation
-   for a complete usage example.
+   for the complete usage example.
 
    If the tested expression does not yield truthy value within the
    current [[cuic.core/*timeout*]], a assertion failure will be
@@ -229,19 +230,19 @@
      (:value res#)))
 
 (defn browser-test-fixture
-  "Convenience test fixture for UI tests. Launches single Chrome instance
+  "Convenience test fixture for UI tests. Launches a single Chrome instance
    and setups it as the default browser for [[cuic.core]] functions.
 
    Browser's headless mode is controlled either directly by the given options
    or indirectly by the `cuic.headless` system property. If you're developing
    tests with REPL, you probably want to set `{:jvm-opts [\"-Dcuic.headless=false\"]}`
-   to your REPL profile so that tests are run from REPL are using non-headless
+   to your REPL profile so that tests are run in REPL are using non-headless
    mode but still using headless when run in CI.
 
    This fixture covers only the basic cases. For more complex test setups,
    you probably want to write your own test fixture.
 
-   See namespace documentation for a complete usage example."
+   See namespace documentation for the complete usage example."
   ([] (browser-test-fixture {}))
   ([{:keys [headless options]
      :or   {headless (not= "false" (System/getProperty "cuic.headless"))

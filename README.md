@@ -58,8 +58,8 @@ Here's a small snippet showing how to test the classic
 
 ## Documentation
 
-Each `cuic` function has a Clojure doc string describing its behaviour and usage. 
-Generated API docs and guides are also available as **[cljdoc](https://cljdoc.org/d/cuic/cuic)**.
+Each `cuic` function has a Clojure doc-string describing its behaviour and usage. 
+Generated API docs and guides are also available in **[cljdoc.org](https://cljdoc.org/d/cuic/cuic)**.
 
 * [Usage](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage)
     * [Browser management](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/launching-chrome)

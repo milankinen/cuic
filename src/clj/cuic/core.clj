@@ -647,26 +647,65 @@
       (-js-prop element "!!this.offsetParent && __CUIC__.isInViewport(this)"))))
 
 (defn parent
-  "Returns parent element of the given html element or `nil` if element
-   does not have parent (= document)"
+  "Returns the parent element of the given html element or `nil` if
+   the element does not have any parent.
+
+   See https://developer.mozilla.org/en-US/docs/Web/API/Node/parentElement
+   for more details."
   [element]
   (rewrite-exceptions
     (check-arg [element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't get parent of element" (quoted (get-element-name element))
                           "because it does not exist anymore")
-      (let [parent (call-sync {:code "return this.parentNode;" :this element})]
+      (let [parent (call-sync {:code "return this.parentElement;" :this element})]
         (when parent
           (with-element-meta parent nil nil nil))))))
 
+(defn offset-parent
+  "Returns the offset parent element of the given html element or `nil`
+   if the element does not have any offset parent.
+
+   See https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/offsetParent
+   for more details."
+  [element]
+  (rewrite-exceptions
+    (check-arg [element? "html element"] [element "element"])
+    (stale-as-ex (cuic-ex "Can't get offset parent of element" (quoted (get-element-name element))
+                          "because it does not exist anymore")
+      (let [parent (call-sync {:code "return this.offsetParent;" :this element})]
+        (when parent
+          (with-element-meta parent nil nil nil))))))
+
+(defn closest
+  "Returns the closest ancestor element that matches the given css
+   selector or `nil` if there are no matches.
+
+   See https://developer.mozilla.org/en-US/docs/Web/API/Element/closest
+   for more details."
+  [element selector]
+  (rewrite-exceptions
+    (check-arg [element? "html element"] [element "element"])
+    (check-arg [string? "string"] [selector "selector"])
+    (stale-as-ex (cuic-ex "Can't get closest ancestor of element" (quoted (get-element-name element))
+                          "because it does not exist anymore")
+      (let [ancestor (call-sync {:code "return this.closest(css);"
+                                 :this element
+                                 :args {:css selector}})]
+        (when ancestor
+          (with-element-meta ancestor nil nil nil))))))
+
 (defn children
-  "Returns children of the given html element as a vector or `nil` if
-   element does not have children."
+  "Returns a vector of children of the given html element or
+   `nil` if the element does not have any children.
+
+   See https://developer.mozilla.org/en-US/docs/Web/API/ParentNode/children
+   for more details"
   [element]
   (rewrite-exceptions
     (check-arg [element? "html element"] [element "element"])
     (stale-as-ex (cuic-ex "Can't get children of element" (quoted (get-element-name element))
                           "because it does not exist anymore")
-      (not-empty (-js-prop element "Array.from(this.chidlren)")))))
+      (not-empty (-js-prop element "Array.from(this.children)")))))
 
 (defn inner-text
   "Returns the inner text of the given html element. See

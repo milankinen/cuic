@@ -399,14 +399,15 @@
                 0 (if (< elapsed timeout)
                     (do (sleep (min 100 (- *timeout* elapsed)))
                         (recur))
-                    (throw (timeout-ex "Could not find element" (quoted as) "from"
-                                       (quoted (get-element-name ctx)) "with selector"
-                                       (quoted by) "in" timeout "milliseconds")))
+                    (throw (timeout-ex "Could not find element" (quoted as)
+                                       "from" (quoted (get-element-name ctx))
+                                       "with selector" (quoted by)
+                                       (when (:when selector) "and custom predicate")
+                                       "in" timeout "milliseconds")))
                 (throw (cuic-ex "Found too many" (str "(" (count nodes) ")") (quoted as)
                                 "html elements from" (quoted (get-element-name ctx))
                                 "with selector" (quoted by)
-                                (when-let [f (:pred selector)]
-                                  (str "after checking conditions " f))))))))
+                                (when (:when selector) "and custom predicate")))))))
         (recur {:by selector})))))
 
 (defn query

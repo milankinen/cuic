@@ -1,9 +1,9 @@
 {:cljdoc.doc/tree
  [["Readme" {:file "README.md"}]
   ["Usage" {:file "doc/usage.md"}
-   ["Launching Chrome" {:file "doc/chrome.md"}]
-   ["Searching elements" {:file "doc/queries.md"}]
-   ["Interacting with page" {:file "doc/interactions.md"}]
-   ["Dealing with asynchrony" {:file "doc/async.md"}]
-   ["Writing tests" {:file "doc/tests.md"}]
-   ["REPL usage" {:file "doc/repl.md"}]]]}
+   ["Browser management" {:file "doc/chrome.md"}]
+   ["Element queries" {:file "doc/queries.md"}]
+   ["Interactions" {:file "doc/interactions.md"}]
+   ["Asynchrony" {:file "doc/async.md"}]
+   ["Tests and fixtures" {:file "doc/tests.md"}]
+   ["REPL" {:file "doc/repl.md"}]]]}

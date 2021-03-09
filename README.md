@@ -11,15 +11,15 @@ Clojure UI testing with Chrome
 I needed a library for writing robust and maintainable UI tests for my work 
 and hobby Clojure(Script) projects. The library had to run on top of the 
 JVM to simplify test setups and enable code sharing, but without the 
-annoying WebDriver version hassle. 
+annoying WebDriver version hassle. `cuic` is a response to fill that gap.
 
 The design of the current version of `cuic` is the result of countless 
 (re)written tests, hours after hours of CI test runs and enless debugging
 sessions, driven by the following core principles:
 
-  * Utilization of Clojure core data structures and language features 
-    instead of custom macros and DSLs
-  * Minimal and unambiguous but easily extendable API contract 
+  * Prefer Clojure core data structures and language features 
+    to custom macros and DSLs
+  * Minimal and unambiguous but easily extendable API 
   * Seamless integration with `clojure.test` and the tooling around it
   * First class REPL usage
 
@@ -58,16 +58,16 @@ Here's a small snippet showing how to test the classic
 
 ## Documentation
 
-Each `cuic` function has a Clojure doc-string describing its behaviour and usage. 
+Each `cuic` function has a Clojure doc string describing its behaviour and usage. 
 Generated API docs and guides are also available as **[cljdoc](https://cljdoc.org/d/cuic/cuic)**.
 
-* [Usage guide](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage)
-    * [Launching Chrome](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/launching-chrome)
-    * [Searching elements](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/searching-elements)
-    * [Interacting with page](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/interacting-with-page)
-    * [Dealing with asynchrony](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/dealing-with-asynchrony)
-    * [Writing tests](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/writing-tests)
-    * [REPL usage](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/repl-usage)
+* [Usage](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage)
+    * [Browser management](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/launching-chrome)
+    * [Element queries](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/searching-elements)
+    * [Interactions](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/interacting-with-page)
+    * [Asynchrony](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/dealing-with-asynchrony)
+    * [Tests and fixtures](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/writing-tests)
+    * [REPL](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/repl-usage)
 
 ## Similar projects
 

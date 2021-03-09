@@ -1,7 +1,7 @@
 (ns cuic.chrome
   "Functions for Chrome process launching and management"
   (:require [clojure.spec.alpha :as s]
-            [clojure.tools.logging :refer [trace debug warn error]]
+            [clojure.tools.logging :refer [trace debug error fatal]]
             [clojure.java.io :as io]
             [clojure.string :as string]
             [clojure.data.json :as json]
@@ -52,8 +52,8 @@
       (when-not (.waitFor proc 5 TimeUnit/SECONDS)
         (.destroyForcibly proc)
         (.waitFor proc 5 TimeUnit/SECONDS))
-      (catch InterruptedException ex
-        (warn ex "Interrupted while terminating Chrome process")
+      (catch InterruptedException _
+        (error "Interrupted while terminating Chrome process")
         (.destroyForcibly proc)))))
 
 (defn- log-proc-output [^Process proc]
@@ -66,7 +66,7 @@
           (trace output-line)))
       (catch InterruptedException _)
       (catch Exception ex
-        (error ex "Unexpected exception occurred while reading Chrome output")))
+        (fatal ex "Unexpected exception occurred while reading Chrome output")))
     (trace "Chrome output logger stopped")))
 
 (defn- start-loggers [^Process proc]

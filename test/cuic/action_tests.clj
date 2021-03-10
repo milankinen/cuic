@@ -72,6 +72,34 @@
       (c/scroll-into-view (c/find "#needs-scrolling-btn"))
       (is (c/in-viewport? (c/find "#needs-scrolling-btn"))))))
 
+(deftest* dialog-tests
+  (c/goto forms-url)
+  (let [has-text? #(string/includes? (c/inner-text (c/find "body")) %)
+        dialog (atom nil)]
+    (c/on-dialog #(do (reset! dialog %) :accept))
+    (c/click (c/find "#show-alert"))
+    (is* (= {:default-prompt ""
+             :message        "tsers!"
+             :type           :alert}
+            @dialog))
+    (c/click (c/find "#show-confirm"))
+    (is* (= {:default-prompt ""
+             :message        "Sure?"
+             :type           :confirm}
+            @dialog))
+    (is* (has-text? "Confirm result: true"))
+    (c/click (c/find "#show-prompt"))
+    (is* (= {:default-prompt "tsers"
+             :message        "Greeting"
+             :type           :prompt}
+            @dialog))
+    (c/on-dialog #(do (reset! dialog %) :accept))
+    (is* (has-text? "Prompt result: tsers"))
+    (c/on-dialog (constantly "lolbal"))
+    (c/click (c/find "#show-prompt"))
+    (is* (has-text? "Prompt result: lolbal"))))
+
+
 (deftest* scroll-into-view-before-action-test
   (c/goto forms-url)
   (is* (not (c/in-viewport? (c/find "#needs-scrolling-btn"))))

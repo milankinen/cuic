@@ -14,7 +14,8 @@
                                        assoc-custom-name]]
             [cuic.internal.page :refer [navigate-to
                                         navigate-forward
-                                        navigate-back]]
+                                        navigate-back
+                                        set-dialog-handler]]
             [cuic.internal.runtime :refer [js-object?
                                            get-object-id
                                            eval-sync
@@ -36,7 +37,7 @@
                                         decode-base64
                                         url-str?]])
   (:import (java.io File)
-           (cuic TimeoutException DevtoolsProtocolException)))
+           (cuic TimeoutException DevtoolsProtocolException CuicException)))
 
 (set! *warn-on-reflection* true)
 
@@ -1426,3 +1427,64 @@
                                     :fromSurface true}
                           :timeout timeout})]
          (decode-base64 (:data res)))))))
+
+(defn on-dialog
+  "Registers the given handler function for JavaScript dialogs. The registered
+   handler gets called every time when a new JavaScript dialog (alert, confirm,
+   prompt and beforeunload confirmation) is opened to the page. Handler must
+   respond by returning either `:accept` or `:dismiss`. For prompts, returned
+   value can also be a string which indicates the user inputted text to the prompt.
+
+   The handler function receives one argument which is a map describing
+   the opened dialog properties:
+   ```clojure
+   {:message        <string>     ;; message that will be displayed by the dialog
+    :type           <keyword>    ;; dialog type, one of #{:alert :confirm :prompt :beforeunload}
+    :default-prompt <string>     ;; default dialog prompt
+   ```
+
+   **Important:** Handler must be registered **before** the dialog is
+   opened. Registering handler unregisters the previous one automatically.
+   Default handler accepts all dialogs.
+
+   ```clojure
+   ;; Accept dialog that may appear after click
+   (c/on-dialog (constantly :accept))
+   (c/click (c/find \"button.delete\"))
+
+   ;; Fill username that was prompted
+   (c/on-dialog (fn [{:keys [message]}]
+                  (case message
+                    \"Username\" \"milankinen\"
+                    \"Password\" \"***\"
+                    \"\")))
+   (c/click (c/find \"button.delete\"))
+
+   ;; Assert that dialog's default prompt text was previous username
+   (let [default (atom nil)]
+     (c/on-dialog (fn [{:keys [message default-prompt]}]
+                    (reset! default default-prompt)
+                    :dismiss))
+     (c/click (c/find \"#change-username\"))
+     (is* (= @default (c/text-content (c/find \"#username\")))))
+   ```"
+  ([handler] (rewrite-exceptions (on-dialog handler {})))
+  ([handler opts]
+   (rewrite-exceptions
+     (let [browser (or (:browser opts) (-require-default-browser))]
+       (check-arg [ifn? "function"] [handler "handler"])
+       (check-arg [chrome? "chrome instance"] [browser "browser"])
+       (let [page (get-current-page browser)
+             f (fn [dialog]
+                 (let [res (handler dialog)]
+                   (cond
+                     (= :accept res) (if (= :prompt (:type dialog))
+                                       (:default-prompt dialog)
+                                       true)
+                     (= :dismiss res) false
+                     (string? res) res
+                     :else (throw (CuicException. (str "Dialog handler must return either "
+                                                       ":accept, :dismiss or string if the dialog "
+                                                       "is a prompt"))))))]
+         (set-dialog-handler page f))
+       nil))))

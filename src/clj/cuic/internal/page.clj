@@ -1,5 +1,6 @@
 (ns ^:no-doc cuic.internal.page
-  (:require [cuic.internal.cdt :refer [invoke on off cdt-promise]])
+  (:require [clojure.tools.logging :refer [warn]]
+            [cuic.internal.cdt :refer [invoke on off cdt-promise]])
   (:import (java.lang AutoCloseable)))
 
 (set! *warn-on-reflection* true)
@@ -26,9 +27,27 @@
               s))]
     (swap! state handle)))
 
-(defn- handle-event [state method params]
+(defn- handle-dialog-opening [cdt state {:keys [message type defaultPrompt]}]
+  (if-let [handler (:dialog-handler @state)]
+    (let [args {:message        message
+                :type           (keyword type)
+                :default-prompt defaultPrompt}
+          result (handler args)]
+      (invoke {:cdt  cdt
+               :cmd  "Page.handleJavaScriptDialog"
+               :args {:accept     (boolean result)
+                      :promptText (if (string? result) result "")}}))
+    (do (warn "JavaScript dialog was opened but no handler is defined."
+              "Using default handler accepting all dialogs")
+        (invoke {:cdt  cdt
+                 :cmd  "Page.handleJavaScriptDialog"
+                 :args {:accept     true
+                        :promptText ""}}))))
+
+(defn- handle-event [cdt state method params]
   (case method
     "Page.lifecycleEvent" (handle-lifecycle-event state params)
+    "Page.javascriptDialogOpening" (handle-dialog-opening cdt state params)
     nil))
 
 (defn- navigate [{:keys [cdt] :as page} navigation-op timeout]
@@ -67,8 +86,10 @@
         state (atom {:main-frame main-frame :events #{}})
         ;; Attach listeners for lifecycle events
         subs (on {:cdt      cdt
-                  :methods  #{"Page.lifecycleEvent"}
-                  :callback #(handle-event state %1 %2)})]
+                  :methods  #{"Page.lifecycleEvent"
+                              "Page.javascriptDialogOpening"
+                              "Page.javascriptDialogClosed"}
+                  :callback #(handle-event cdt state %1 %2)})]
     ;; Enable events
     (invoke {:cdt  cdt
              :cmd  "Page.enable"
@@ -78,6 +99,11 @@
              :args {:enabled true}})
     ;; Return handle to the page
     (->Page cdt state subs)))
+
+(defn set-dialog-handler [page f]
+  {:pre [(page? page)
+         (fn? f)]}
+  (swap! (:state page) #(when % (assoc % :dialog-handler f))))
 
 (defn detach [page]
   {:pre [(page? page)]}

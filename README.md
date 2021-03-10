@@ -1,6 +1,6 @@
 # <img src="kuikka.svg" align="left" width="60" height="60"> CUIC
 
-Clojure UI testing with Chrome
+Clojure UI testing with Chrome. Special thanks to Timo L. for the awesome logo!
 
 [![Build status](https://img.shields.io/github/workflow/status/milankinen/cuic/Run%20tests/master?style=flat-square)](https://github.com/milankinen/cuic/actions?query=workflow%3A%22Run+tests%22)
 [![Clojars Project](https://img.shields.io/clojars/v/cuic.svg?style=flat-square)](https://clojars.org/cuic)
@@ -14,7 +14,7 @@ JVM to simplify test setups and enable code sharing, but without the
 annoying WebDriver version hassle. `cuic` is a response to fill that gap.
 
 The design of the current version of `cuic` is the result of countless 
-(re)written tests, hours after hours of CI test runs and enless debugging
+(re)written tests, hours after hours of CI test runs and endless debugging
 sessions, driven by the following core principles:
 
   * Prefer Clojure core data structures and language features 

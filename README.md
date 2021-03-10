@@ -62,12 +62,12 @@ Each `cuic` function has a Clojure doc-string describing its behaviour and usage
 Generated API docs and guides are also available in **[cljdoc.org](https://cljdoc.org/d/cuic/cuic)**.
 
 * [Usage](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage)
-    * [Browser management](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/launching-chrome)
-    * [Element queries](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/searching-elements)
-    * [Interactions](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/interacting-with-page)
-    * [Asynchrony](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/dealing-with-asynchrony)
-    * [Tests and fixtures](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/writing-tests)
-    * [REPL](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/repl-usage)
+    * [Browser management](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/browser-management)
+    * [Element queries](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/element-queries)
+    * [Interactions](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/interactions)
+    * [Asynchrony](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/asynchrony)
+    * [Tests and fixtures](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/tests-and-fixtures)
+    * [REPL](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/repl)
 
 ## Similar projects
 

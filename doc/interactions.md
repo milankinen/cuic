@@ -35,21 +35,15 @@ for a complete list of built-in functions.
 (is (= ["lol "bal] (map todo-text (todos))))
 ```
 
-Inspecting DOM **never** performs any implicit waiting. Instead, each function 
+DOM inspection **never** performs any implicit waiting. Instead, each function 
 return the state as it is (or was) during the invocation time. Note that 
 due to the mutable nature of DOM, read functions are **not** referentially 
 transparent. In other words, subsequent calls may return different 
 results if the DOM changes between the calls. You must take this 
 into account when implementing your functions and assertions: use 
 [[cuic.core/wait]] to mitigate the issues with asynchrony or when you're 
-expecting something to be found. 
-
-Inspection functions do not perform any mutations to the DOM making them safe 
-to call multiple times. However, pay attention that the target element does not 
-get removed from the DOM; in such case `cuic` will throw an exception. Generally
-it's recommended to query elements just before their usage and throw them away
-right after it in order to avoid stale elements (next section will explain
-this in more detail).
+expecting something to be found. Inspection functions do not perform any 
+mutations to the DOM making them safe to call multiple times.
 
 To see the complete list of read functions, see `cuic.core` reference
 from the [API docs](https://cljdoc.org/d/cuic/cuic). 
@@ -128,7 +122,7 @@ bound `this` context must be a reference to JavaScript object. By default,
 ```
 
 > **NOTE:** Performance-wise passing object references from Clojure
-> to JavaScript and vice versa is slower than passing primitive valus
+> to JavaScript and vice versa is slower than passing primitive values
 > or `this` binding. If you have only one object reference, you should
 > use `this` instead of named argument.
  

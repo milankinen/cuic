@@ -10,30 +10,30 @@ Some libraries try to mitigate the async issues by introducing their
 own DSLs that combine actions, data reading and assertions into "chains" 
 or similar constructs. `cuic` however, takes a different approach. Unlike 
 in JavaScript, IO doesn't need to be asynchronous in JVM languages. `cuic` 
-takes advance of this: each function call *blocks* if there are any asynchronous 
-activity and returns *data structures* that can be interacted with other 
-(possibly blocking) functions and standard Clojure language features. This 
-makes test utilities composable and easy to debug. Control flow is also a 
-lot easier to follow in the standard blocking code than with asynchronous
-primitives and DSLs.
+takes advance of this: functions *block* if there are any asynchronous 
+activity and after that return *plain objects* or *data structures* that can 
+be further interacted with other (possibly blocking) functions and standard 
+Clojure language features. This makes test utilities composable and easy to 
+debug. Control flow is also a lot easier to follow in the standard blocking 
+code than with asynchronous primitives and DSLs.
 
 As a rule of thumb, `cuic` has three levels to handle asynchrony:
 
-  1. `c/find` always waits until the searched element exists in DOM 
+  1. `c/find` always waits until the queried element exists in DOM 
   2. Actions wait until the target element satisfies pre-conditions that are
-     required for the performed action (e.g. clicked element becomes visible 
-     and enabled)
+     required for the performed action (e.g. the clicked element becomes 
+     visible and enabled)
   3. `c/wait` macro allows waiting for *any* other condition, blocking the 
      execution until the expected condition is satisfied 
 
 ### Element queries with `cuic.core/find` 
 
-Based on the experience, in 90% of the cases, you're gonna query just one 
-specific element at time: "click save button", "fill email field",  "type 
-xyz to the search box", "check that cancel button is disabled". Because 
-this is so common, single element queries has special semantics in `cuic`: 
-when you're searching for the element, `cuic` expects it to exist and tries 
-its best to find the element before giving up. If the element is not found 
+Based on the experience, in 90% of the cases, you're going to query just one 
+specific element at time: "click the save button", "fill the email field",  
+"type xyz to the search box", "check that the cancel button is disabled". 
+Because this is so common, single element queries have special semantics in 
+`cuic`: when you're searching for the element, `cuic` expects it to exist and 
+tries its best to find the element before giving up. If the element is not found 
 immediately, `cuic` waits a little and tries again and again until the element 
 appears in DOM or timeout exceeds. In case of timeout, an exception is thrown. 
 This means that `find` **always** returns an element that exists in DOM.
@@ -46,11 +46,11 @@ This means that `find` **always** returns an element that exists in DOM.
 
 Pay attention that element returned by `find` is a handle to the 
 actual DOM node, not an abstract "description" how to find the node.
-In other words, if the DOM node gets removed (either by user actions
-or some background task or page reload), the handle becomes stale as 
-well. That's why you should keep the element handles **only the time 
-you need them** and discard them immediately after that (just don't
-use the object, `cuic` and JVM GC handles the rest).
+In other words, if the referenced DOM node becomes stale (for example
+due to page reload), the handle becomes stale as well. That's why you 
+should keep the element handles **only the time you need them** and 
+discard them immediately after that (just don't use the object, `cuic` 
+and JVM GC handles the rest).
 
 Element lookups are relatively cheap operations. Usually it's better
 to use functions to get element on demand. This also makes your tests

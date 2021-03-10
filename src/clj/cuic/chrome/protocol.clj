@@ -1,4 +1,4 @@
-(ns cuic.protocol
+(ns cuic.chrome.protocol
   "Direct low-level access to Chrome DevTools via Chrome DevTools
    Protocol. Use [[cuic.chrome/devtools]] to obtain the to the
    browser's devtools client.

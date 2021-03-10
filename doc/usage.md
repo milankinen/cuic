@@ -6,5 +6,5 @@ which contains functions for page queries and interactions. In addition to
 
   * `cuic.test` - convenience utilities for tests suites and assertions 
   * `cuic.chrome` - Chrome browser instance launching and management
-  * `cuic.protocol`- direct [Chrome Devtools Protocol](https://chromedevtools.github.io/devtools-protocol)
+  * `cuic.chrome.protocol`- direct [Chrome Devtools Protocol](https://chromedevtools.github.io/devtools-protocol)
     access 

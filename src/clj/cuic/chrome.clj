@@ -406,7 +406,7 @@
 
 (defn devtools
   "Returns handle to the Chrome devtools. To use the returned devtools,
-   see functions from the [[cuic.protocol]] namespace."
+   see functions from the [[cuic.chrome.protocol]] namespace."
   [chrome]
   {:pre [(chrome? chrome)]}
   (-> (get-current-page chrome)

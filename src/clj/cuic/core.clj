@@ -334,6 +334,11 @@
        (eval-sync {:page (get-current-page browser)
                    :code "return document.activeElement"})))))
 
+(defn- -as-elem [x]
+  (if (chrome? x)
+    (document x)
+    x))
+
 (defn find
   "Tries to find **exactly one** html element by the given css
    selector and throws an exception if the element wasn't found **or**
@@ -380,7 +385,7 @@
         (let [{:keys [in by as timeout]
                :or   {timeout *timeout*}} selector
               pred (get selector :when identity)
-              ctx (or in *query-scope* (document))
+              ctx (-as-elem (or in *query-scope* (document)))
               _ (check-arg [element? "html element"] [ctx "context"])
               _ (check-arg [string? "string"] [by "selector"])
               _ (check-arg [ifn? "function"] [pred "predicate"])
@@ -455,7 +460,7 @@
     (loop [selector selector]
       (if (map? selector)
         (let [{:keys [in by as]} selector
-              ctx (or in *query-scope* (document))
+              ctx (-as-elem (or in *query-scope* (document)))
               pred (get selector :when identity)
               _ (check-arg [element? "html element"] [ctx "context"])
               _ (check-arg [string? "string"] [by "selector"])

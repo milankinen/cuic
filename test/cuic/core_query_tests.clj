@@ -41,7 +41,9 @@
             (c/find "#list li"))))
     (testing "filtering queried nodes with predicate"
       (is (some? (c/find {:by   "#list li"
-                          :when #(= "bal" (c/text-content %))})))))
+                          :when #(= "bal" (c/text-content %))}))))
+    (testing "browser is accepted as context"
+      (is (some? (c/find {:by "#delayed-node-trigger" :in c/*browser*})))))
   (binding [c/*timeout* 100]
     (testing "finding under context node"
       (let [ctx-1 (c/find "#context-1")
@@ -77,6 +79,8 @@
             "#element {:tag \"option\", :name \"Option\", :selector \"#select option\"}"
             "#element {:tag \"option\", :name \"Option\", :selector \"#select option\"}"]
            (map pr-str (c/query {:by "#select option" :as "Option"})))))
+  (testing "browser is accepted as context"
+    (is (seq (c/query {:by "#delayed-node-trigger" :in c/*browser*}))))
   (testing "querying under context node"
     (let [ctx-1 (c/find "#context-1")
           ctx-2 (c/find "#context-2")]

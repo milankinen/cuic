@@ -14,10 +14,10 @@
   :auto-clean false
   :pedantic? :abort
   :dependencies
-  [[org.clojure/tools.logging "1.1.0" :exclusions [org.clojure/clojure]]
-   [org.clojure/data.json "1.0.0" :exclusions [org.clojure/clojure]]
+  [[org.clojure/tools.logging "1.2.3" :exclusions [org.clojure/clojure]]
+   [org.clojure/data.json "2.4.0" :exclusions [org.clojure/clojure]]
    [stylefruits/gniazdo "1.2.0" :exclusions [org.clojure/clojure]]
-   [org.jsoup/jsoup "1.13.1"]]
+   [org.jsoup/jsoup "1.14.3"]]
   :source-paths ["src/clj"]
   :java-source-paths ["src/java"]
   :resource-paths ["resources" "src/js/build"]
@@ -25,9 +25,9 @@
                     [[org.clojure/clojure "1.10.2"]
                      [http-kit "2.5.3"]
                      [compojure "1.6.2"]
-                     [ch.qos.logback/logback-classic "1.2.3"]
+                     [ch.qos.logback/logback-classic "1.2.10"]
                      [eftest "0.5.9"]
-                     [clj-kondo "2021.02.28"]]
+                     [clj-kondo "2021.12.19"]]
                     :repl-options
                     {:init-ns repl}
                     :plugins

@@ -49,7 +49,7 @@ you must configure your logging library implementation to include
 `cuic.chrome` (or `cuic`) logger with the desired logging level:
 
    * `FATAL` - unexpected non-recoverable errors
-   * `ERROR` - unexpceted but recoverable errors
+   * `ERROR` - unexpected but recoverable errors
    * `DEBUG` - browser lifecycle events
    * `TRACE` - stdout and stderr of the browser process
 
@@ -63,11 +63,13 @@ you must configure your logging library implementation to include
 Once you've obtained a Chrome instance, you have three different options 
 to use it in `cuic.core` functions:
 
-1. Pass it directly to each function invocation
-2. Use dynamic `cuic.core/*browser*` variable and Clojure's `binding` macro. 
+1. Pass it directly to each function invocation (`cuic`'s query functions 
+   allow defining the browser explicitly, binding the retrieved element to 
+   the used browser. See *"Multi-browser testing"* for more details).
+3. Use dynamic `cuic.core/*browser*` variable and Clojure's `binding` macro. 
    This is the recommended option for test runs (see [testing guide](./tests.md) 
    for more details).
-3. Set it globally as the default browser with [cuic.core/set-browser!]. 
+4. Set it globally as the default browser with [cuic.core/set-browser!]. 
    This is the recommended option for REPL (see [REPL setup](./repl.md) for 
    more details).
 

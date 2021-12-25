@@ -68,6 +68,8 @@ Generated API docs and guides are also available in **[cljdoc.org](https://cljdo
     * [Asynchrony](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/asynchrony)
     * [Tests and fixtures](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/tests-and-fixtures)
     * [REPL](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/usage/repl)
+* [Cookbook](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/cookbook)
+    * [Multi-browser testing](https://cljdoc.org/d/cuic/cuic/CURRENT/doc/cookbook/multi-browser-testing)
 
 ## Similar projects
 

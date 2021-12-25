@@ -6,4 +6,6 @@
    ["Interactions" {:file "doc/interactions.md"}]
    ["Asynchrony" {:file "doc/async.md"}]
    ["Tests and fixtures" {:file "doc/tests.md"}]
-   ["REPL" {:file "doc/repl.md"}]]]}
+   ["REPL" {:file "doc/repl.md"}]]
+  ["Cookbook" {:file "doc/cookbook.md"}
+   ["Multi-browser testing" {:file "doc/multibrowser.md"}]]]}

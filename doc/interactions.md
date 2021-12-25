@@ -68,7 +68,7 @@ they work well with Clojure's built-in `doto` macro.
 
 ```clojure 
 (defn add-todo [text]
-  (doto (c/find ".new-todo)
+  (doto (c/find ".new-todo")
     (c/clear-text)
     (c/fill text))
   (c/press 'Enter))

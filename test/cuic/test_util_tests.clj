@@ -22,7 +22,7 @@
     (is* true)
     (swap! *assertions* inc)))
 
-(defn- ^File create-temp-dir [prefix]
+(defn- create-temp-dir ^File [prefix]
   (.toFile (Files/createTempDirectory prefix (into-array FileAttribute []))))
 
 (defn- delete-temp-dir [^File dir]

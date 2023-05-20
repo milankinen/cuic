@@ -21,7 +21,7 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- ^Path get-chrome-binary-path []
+(defn- get-chrome-binary-path ^Path []
   (or (->> ["/usr/bin/chromium",
             "/usr/bin/chromium-browser",
             "/usr/bin/google-chrome-stable",
@@ -279,7 +279,7 @@
     (= headless true) (merge headless-defaults (assoc options :headless "old"))
     :else (merge headless-defaults options)))
 
-(defn ^Chrome launch
+(defn launch
   "Launches a new local Chrome process with the given options and returns
    instance to the launched Chrome that can be used as a browser in
    [[cuic.core]] functions.
@@ -342,10 +342,10 @@
        ...do something...))
    ```
    "
-  ([] (launch {:headless "old"}))
-  ([options] (launch options (get-chrome-binary-path)))
-  ([options chrome-path] (launch options chrome-path (or (long-prop "cuic.chrome.timeout") 10000)))
-  ([options chrome-path timeout]
+  (^Chrome [] (launch {:headless "old"}))
+  (^Chrome [options] (launch options (get-chrome-binary-path)))
+  (^Chrome [options chrome-path] (launch options chrome-path (or (long-prop "cuic.chrome.timeout") 10000)))
+  (^Chrome [options chrome-path timeout]
    {:pre [(or (instance? Path chrome-path)
               (string? chrome-path))
           (s/valid? ::options options)

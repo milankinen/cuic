@@ -79,13 +79,13 @@
 
 (declare parse-document)
 
-(defn- parse-body [html]
+(defn- parse-body [^String html]
   (.body (Jsoup/parse html)))
 
-(defn- parse-head [html]
+(defn- parse-head [^String html]
   (.head (Jsoup/parse html)))
 
-(defn- parse-fragment [html]
+(defn- parse-fragment [^String html]
   (-> (Jsoup/parseBodyFragment html)
       (.body)
       (.child 0)))

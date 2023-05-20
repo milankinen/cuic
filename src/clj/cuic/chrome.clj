@@ -346,7 +346,8 @@
   ([options] (launch options (get-chrome-binary-path)))
   ([options chrome-path] (launch options chrome-path (or (long-prop "cuic.chrome.timeout") 10000)))
   ([options chrome-path timeout]
-   {:pre [(instance? Path chrome-path)
+   {:pre [(or (instance? Path chrome-path)
+              (string? chrome-path))
           (s/valid? ::options options)
           (pos-int? timeout)]}
    (let [custom-data-dir (:user-data-dir options)
@@ -366,7 +367,9 @@
                              (true? v) (str "--" (name k))
                              (false? v) nil
                              :else (str "--" (name k) "=" v))))
-                   (into [(.toString (.toAbsolutePath ^Path chrome-path))]))
+                   (into [(if-not (string? chrome-path)
+                            (.toString (.toAbsolutePath ^Path chrome-path))
+                            chrome-path)]))
          args (if (= (:headless options) "old")
                 ; Chromium did a breaking change recently (version ~109), and when started headless,
                 ; it seems it has "zero" tabs open. This can be fixed by providing and url and about:blank

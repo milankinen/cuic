@@ -5,12 +5,11 @@
   "main": "index.js",
   "scripts": {
     "prebuild": "rm -rf build",
-    "build": "webpack --mode production --entry ./index.js -o build --output-filename cuic_runtime.js"
+    "build": "esbuild ./index.js --minify --bundle --outfile=build/cuic_runtime.js"
   },
   "dependencies": {
+    "esbuild": "^0.17.19",
     "lodash": "^4.17.21",
-    "smooth-scroll-into-view-if-needed": "^1.1.32",
-    "webpack": "^5.65.0",
-    "webpack-cli": "^4.9.1"
+    "smooth-scroll-into-view-if-needed": "^2.0.0"
   }
 }

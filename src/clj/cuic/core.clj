@@ -168,7 +168,7 @@
 (defn sleep
   "Stops the current thread execution for the given
    `n` milliseconds."
-  [ms]
+  [^long ms]
   {:pre [(nat-int? ms)]}
   (Thread/sleep ms))
 

@@ -17,6 +17,24 @@ reference of the available startup options.
 (def foreground-chrome (chrome/launch {:headless false}))
 ```
 
+### Old and new headless
+
+Since version 96, Chrome has a new headless mode that allows users to get the
+full browser functionality (even run extensions). Between versions 96 to 108 it was
+--headless=chrome, after version 109 --headless=new. `cuic` supports both old and new
+headless modes.
+
+```clojure
+;; launch in old headless mode
+(def old-headless-chrome (chrome/launch {:headless "old"}))
+
+;; deprecated: equivalent with {:headless "old"} but may be removed in future
+(def old-headless-chrome (chrome/launch {:headless true}))
+
+;; launch in new headless mode
+(def new-headless-chrome (chrome/launch {:headless "new"}))
+```
+
 If you're using a non-standard Chrome/Chromium installation, you can
 provide the executable path as a parameter to the `launch` invocation:
 

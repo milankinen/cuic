@@ -189,7 +189,7 @@
 
 (s/def ::width pos-int?)
 (s/def ::height pos-int?)
-(s/def ::headless boolean?)
+(s/def ::headless (s/or :boolean boolean? :new-or-old (comp boolean #{"new" "old"})))
 (s/def ::window-size (s/keys :req-un [::width ::height]))
 (s/def ::disable-gpu boolean?)
 (s/def ::remote-debugging-port pos-int?)
@@ -269,6 +269,16 @@
     :mute-audio true
     :hide-scrollbars true))
 
+(defn- resolve-defaults
+  "Merges `options` with appropriate defaults based on whether running in
+   headless mode or not."
+  [{:keys [headless] :as options}]
+  (cond
+    (= headless false) (merge defaults options)
+    ; unify {:headless true} and {:headless "old"}
+    (= headless true) (merge headless-defaults (assoc options :headless "old"))
+    :else (merge headless-defaults options)))
+
 (defn ^Chrome launch
   "Launches a new local Chrome process with the given options and returns
    instance to the launched Chrome that can be used as a browser in
@@ -332,7 +342,7 @@
        ...do something...))
    ```
    "
-  ([] (launch {:headless true}))
+  ([] (launch {:headless "old"}))
   ([options] (launch options (get-chrome-binary-path)))
   ([options chrome-path] (launch options chrome-path (or (long-prop "cuic.chrome.timeout") 10000)))
   ([options chrome-path timeout]
@@ -346,13 +356,10 @@
          data-dir (or custom-data-dir tmp-data-dir)
          port (or (:remote-debugging-port options)
                   (get-free-port-for-cdp))
-         args (->> (merge (if (:headless options)
-                            headless-defaults
-                            defaults)
-                          options
-                          {:user-data-dir         (str data-dir)
-                           :remote-debugging-port port})
-                   (filter second)
+         options (merge (resolve-defaults options)
+                        {:user-data-dir         (str data-dir)
+                         :remote-debugging-port port})
+         args (->> (filter second options)
                    (keep (fn [[k v]]
                            (cond
                              (= :window-size k) (str "--" (name k) "=" (:width v) "," (:height v))
@@ -360,6 +367,12 @@
                              (false? v) nil
                              :else (str "--" (name k) "=" v))))
                    (into [(.toString (.toAbsolutePath ^Path chrome-path))]))
+         args (if (= (:headless options) "old")
+                ; Chromium did a breaking change recently (version ~109), and when started headless,
+                ; it seems it has "zero" tabs open. This can be fixed by providing and url and about:blank
+                ; is short and failsafe way to provide one.
+                (conj args "about:blank")
+                args)
          _ (debug "Starting Chrome with command:" (string/join " " args))
          proc (-> (ProcessBuilder. ^List (apply list args))
                   (.redirectErrorStream true)

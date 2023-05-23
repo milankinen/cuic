@@ -83,5 +83,5 @@
       (type-char cdt ch)
       (when xs
         (when (pos-int? chars-per-minute)
-          (Thread/sleep (/ 60000 chars-per-minute)))
+          (Thread/sleep ^long (/ 60000 chars-per-minute)))
         (recur xs)))))

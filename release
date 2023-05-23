@@ -10,7 +10,7 @@ rm -f /root/.gnupg/S.*
 rm -f /root/.gnupg/*.conf
 export GPG_TTY=$(tty)
 
-curl -sL https://deb.nodesource.com/setup_12.x | bash
+curl -sL https://deb.nodesource.com/setup_18.x | bash
 apt install -y nodejs
 ./lein clean
 ./lein build-js

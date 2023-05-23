@@ -1,4 +1,4 @@
-(defproject cuic "1.0.0-RC2"
+(defproject cuic "1.0.0"
   :description "Concise UI testing with Clojure"
   :url "https://github.com/milankinen/cuic"
   :scm {:name "git"

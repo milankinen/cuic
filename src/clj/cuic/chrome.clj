@@ -22,7 +22,8 @@
 (set! *warn-on-reflection* true)
 
 (defn- get-chrome-binary-path ^Path []
-  (or (->> ["/usr/bin/chromium",
+  (or (->> [(System/getenv "CHROME_BINARY_PATH"),
+            "/usr/bin/chromium",
             "/usr/bin/chromium-browser",
             "/usr/bin/google-chrome-stable",
             "/usr/bin/google-chrome",

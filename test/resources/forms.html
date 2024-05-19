@@ -242,6 +242,22 @@
   </script>
 </section>
 
+<section>
+  <button id="modifiers-test">Click with modifiers</button>
+  <p id="modifiers-test-result"></p>
+  <script type="text/javascript">
+    $.onready(() => {
+      $("#modifiers-test").addEventListener("click", (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        $("#modifiers-test-result").innerText = "modifiers: alt=" +
+                e.altKey + "; meta=" + e.metaKey + "; ctrl=" + e.ctrlKey +
+                "; shift=" + e.shiftKey
+      })
+    })
+  </script>
+</section>
+
 <section style="margin-top: 2500px;">
   <button id="needs-scrolling-btn">Click me</button>
   <div id="needs-scrolling-result"></div>

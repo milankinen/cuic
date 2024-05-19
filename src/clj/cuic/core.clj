@@ -1092,29 +1092,33 @@
 
    ```clojure
    (c/click (c/find \"button#save\"))
+
+   ;; You can simulate modifier key presses, too:
+      (c/click (c/find \"a#details\") {:modifiers [\"Meta\"]})
    ```"
-  [element]
-  (rewrite-exceptions
-    (check-arg [element? "html element"] [element "clicked element"])
-    (stale-as-ex (cuic-ex "Can't click element" (quoted (get-element-name element))
-                          "because it does not exist anymore")
-      (when-not (-wait-visible element)
-        (throw (timeout-ex "Can't click element" (quoted (get-element-name element))
-                           "because it is not visible")))
-      (scroll-into-view-if-needed element)
-      (when-not (-wait-enabled element)
-        (throw (timeout-ex "Can't click element" (quoted (get-element-name element))
-                           "because it is disabled")))
-      (let [{:keys [top left width height]} (-bb element)
-            cdt (get-element-cdt element)
-            x (+ left (/ width 2))
-            y (+ top (/ height 2))]
-        (when (or (zero? width)
-                  (zero? height))
-          (throw (cuic-ex (quoted (get-element-name element)) "is not clickable")))
-        (mouse-move cdt {:x x :y y})
-        (mouse-click cdt {:x x :y y :button :left :clicks 1})
-        element))))
+  ([element] (click element {}))
+  ([element opts]
+   (rewrite-exceptions
+     (check-arg [element? "html element"] [element "clicked element"])
+     (stale-as-ex (cuic-ex "Can't click element" (quoted (get-element-name element))
+                           "because it does not exist anymore")
+       (when-not (-wait-visible element)
+         (throw (timeout-ex "Can't click element" (quoted (get-element-name element))
+                            "because it is not visible")))
+       (scroll-into-view-if-needed element)
+       (when-not (-wait-enabled element)
+         (throw (timeout-ex "Can't click element" (quoted (get-element-name element))
+                            "because it is disabled")))
+       (let [{:keys [top left width height]} (-bb element)
+             cdt (get-element-cdt element)
+             x (+ left (/ width 2))
+             y (+ top (/ height 2))]
+         (when (or (zero? width)
+                   (zero? height))
+           (throw (cuic-ex (quoted (get-element-name element)) "is not clickable")))
+         (mouse-move cdt {:x x :y y})
+         (mouse-click cdt {:x x :y y :button :left :clicks 1 :modifiers (get opts :modifiers #{})})
+         element)))))
 
 (defn double-click
   "First scrolls the given element into the viewport (if needed) and then

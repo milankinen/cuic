@@ -99,6 +99,19 @@
     (c/click (c/find "#show-prompt"))
     (is* (has-text? "Prompt result: lolbal"))))
 
+(deftest* click-with-modifiers
+  (c/goto forms-url)
+  (let [has-text? #(string/includes? (c/inner-text (c/find "#modifiers-test-result")) %)]
+    (doseq [[modifiers expected-result]
+            [[[] "modifiers: alt=false; meta=false; ctrl=false; shift=false"]
+             [["Meta"] "modifiers: alt=false; meta=true; ctrl=false; shift=false"]
+             [["Alt"] "modifiers: alt=true; meta=false; ctrl=false; shift=false"]
+             ;; on OSX, next line may or may not pop up OS context menu, depending on OS-level settings
+             #_[["Ctrl"] "modifiers: alt=false; meta=false; ctrl=true; shift=false"]
+             [["Shift"] "modifiers: alt=false; meta=false; ctrl=false; shift=true"]
+             [#{"Alt" "Shift"} "modifiers: alt=true; meta=false; ctrl=false; shift=true"]]]
+      (c/click (c/find "#modifiers-test") {:modifiers modifiers})
+      (is* (has-text? expected-result)))))
 
 (deftest* scroll-into-view-before-action-test
   (c/goto forms-url)

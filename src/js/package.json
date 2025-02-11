@@ -8,7 +8,7 @@
     "build": "esbuild ./index.js --minify --bundle --outfile=build/cuic_runtime.js"
   },
   "dependencies": {
-    "esbuild": "^0.17.19",
+    "esbuild": "^0.25.0",
     "lodash": "^4.17.21",
     "smooth-scroll-into-view-if-needed": "^2.0.0"
   }
